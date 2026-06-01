@@ -27,13 +27,13 @@ const CURRENCY_LABELS = new Set(CASH_CURRENCIES);
 const BUILTIN_CURRENCY_CODES = new Set(CURRENCY_OPTIONS.map(c => c.code));
 
 const fmt = n => Number(n).toLocaleString("zh-TW");
-const currencyOrder = code => {
-  const idx = CURRENCY_OPTIONS.findIndex(c => c.code === code);
-  return idx === -1 ? CURRENCY_OPTIONS.length : idx;
+const currencyOrder = (code, options = CURRENCY_OPTIONS) => {
+  const idx = options.findIndex(c => c.code === code);
+  return idx === -1 ? options.length : idx;
 };
-const orderedCurrencyEntries = totals => Object.entries(totals)
+const orderedCurrencyEntries = (totals, options = CURRENCY_OPTIONS) => Object.entries(totals)
   .filter(([, amt]) => amt > 0)
-  .sort(([a], [b]) => currencyOrder(a) - currencyOrder(b) || a.localeCompare(b));
+  .sort(([a], [b]) => currencyOrder(a, options) - currencyOrder(b, options) || a.localeCompare(b));
 const normalizeCurrencyCode = code => code === "JYP" ? "JPY" : code;
 const currencyCodeOf = e => normalizeCurrencyCode(e.currency || (e.subpayment || "").match(/[A-Z]{3}$/)?.[0] || "TWD");
 const sumByCurrency = list => list.reduce((acc, e) => {
@@ -41,8 +41,8 @@ const sumByCurrency = list => list.reduce((acc, e) => {
   acc[code] = (acc[code] || 0) + Number(e.amount || 0);
   return acc;
 }, {});
-const formatCurrencyTotals = totals => {
-  const entries = orderedCurrencyEntries(totals);
+const formatCurrencyTotals = (totals, options = CURRENCY_OPTIONS) => {
+  const entries = orderedCurrencyEntries(totals, options);
   return entries.length ? entries.map(([code, amt]) => `${code} ${fmt(amt)}`).join(" · ") : "TWD 0";
 };
 const safeCell = value => {
@@ -110,8 +110,13 @@ export default function App() {
   const [newParentIcon, setNewParentIcon] = useState("📌");
   const [newChild, setNewChild] = useState({});
   const [customCurrencies, setCustomCurrencies] = useState([]);
+  const [currencyOrderCodes, setCurrencyOrderCodes] = useState(CURRENCY_OPTIONS.map(c => c.code));
   const [newCurrency, setNewCurrency] = useState({ name: "", code: "" });
-  const currencyOptions = [...CURRENCY_OPTIONS, ...customCurrencies];
+  const currencyOptions = [...CURRENCY_OPTIONS, ...customCurrencies].sort((a, b) => {
+    const ai = currencyOrderCodes.indexOf(a.code);
+    const bi = currencyOrderCodes.indexOf(b.code);
+    return (ai === -1 ? currencyOrderCodes.length : ai) - (bi === -1 ? currencyOrderCodes.length : bi);
+  });
 
   const now = new Date();
   const [statsFrom, setStatsFrom] = useState(monthStart(now.getFullYear(), now.getMonth()));
@@ -131,12 +136,14 @@ export default function App() {
       const ci = { ...DEFAULT_CAT_ICONS, ...await load("cat_icons_v1") };
       const pm = normalizePayments(await load("pay_v2"));
       const cc = await load("currency_v1") || [];
+      const co = await load("currency_order_v1") || CURRENCY_OPTIONS.map(item => item.code);
       setProjects(p);
       setExpenses(e);
       setCategories(c);
       setCatIcons(ci);
       setPayments(pm);
       setCustomCurrencies(cc);
+      setCurrencyOrderCodes(co);
       await save("pay_v2", pm);
       setReady(true);
     })();
@@ -165,6 +172,10 @@ export default function App() {
   const saveCustomCurrencies = async currencies => {
     setCustomCurrencies(currencies);
     await save("currency_v1", currencies);
+  };
+  const saveCurrencyOrder = async codes => {
+    setCurrencyOrderCodes(codes);
+    await save("currency_order_v1", codes);
   };
   const savePayments = async p => {
     setPayments(p);
@@ -308,6 +319,21 @@ export default function App() {
     await setMap(m);
     showToast("已刪除");
   };
+  const moveParent = async (key, direction) => {
+    const entries = Object.entries(getMap());
+    const idx = entries.findIndex(([name]) => name === key);
+    const nextIdx = idx + direction;
+    if (idx < 0 || nextIdx < 0 || nextIdx >= entries.length) return;
+    [entries[idx], entries[nextIdx]] = [entries[nextIdx], entries[idx]];
+    await setMap(Object.fromEntries(entries));
+  };
+  const moveChild = async (parent, idx, direction) => {
+    const children = [...(getMap()[parent] || [])];
+    const nextIdx = idx + direction;
+    if (nextIdx < 0 || nextIdx >= children.length) return;
+    [children[idx], children[nextIdx]] = [children[nextIdx], children[idx]];
+    await setMap({ ...getMap(), [parent]: children });
+  };
   const addCurrency = async () => {
     const name = newCurrency.name.trim();
     const code = newCurrency.code.trim().toUpperCase();
@@ -315,12 +341,22 @@ export default function App() {
     if (!/^[A-Z]{3}$/.test(code)) return showToast("請輸入三碼英文幣別代碼");
     if (currencyOptions.some(c => c.code === code)) return showToast("此幣別代碼已存在");
     await saveCustomCurrencies([...customCurrencies, { label: `${name}${code}`, code }]);
+    await saveCurrencyOrder([...currencyOrderCodes, code]);
     setNewCurrency({ name: "", code: "" });
     showToast("✅ 已新增幣別");
   };
   const deleteCurrency = async code => {
     await saveCustomCurrencies(customCurrencies.filter(c => c.code !== code));
+    await saveCurrencyOrder(currencyOrderCodes.filter(item => item !== code));
     showToast("已刪除幣別");
+  };
+  const moveCurrency = async (code, direction) => {
+    const codes = currencyOptions.map(c => c.code);
+    const idx = codes.indexOf(code);
+    const nextIdx = idx + direction;
+    if (idx < 0 || nextIdx < 0 || nextIdx >= codes.length) return;
+    [codes[idx], codes[nextIdx]] = [codes[nextIdx], codes[idx]];
+    await saveCurrencyOrder(codes);
   };
 
   const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
@@ -503,12 +539,12 @@ export default function App() {
               <span style={{ opacity: 0.72 }}>{calMonth.y}年{calMonth.m + 1}月 · 月消費</span>
               <span style={{ color: "#64d2ff", fontWeight: 700 }}> · 約 TWD {fmt(monthTwdTotal)}</span>
             </div>
-            <CurrencyTotals totals={monthTotals} size={26} />
+            <CurrencyTotals options={currencyOptions} totals={monthTotals} size={26} />
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 13, opacity: 0.5 }}>選取日期</div>
             <div style={{ fontSize: 15, fontWeight: 600, opacity: 0.85 }}>{selDateLabel}</div>
-            <CurrencyTotals totals={selectedTotals} size={15} color="#30d158" align="right" />
+            <CurrencyTotals options={currencyOptions} totals={selectedTotals} size={15} color="#30d158" align="right" />
           </div>
         </div>
       </div>
@@ -564,7 +600,7 @@ export default function App() {
           <div style={{ padding: "14px 12px 0" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div style={{ fontSize: 17, fontWeight: 600, color: "#1c1c1e" }}>{selDateLabel}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, textAlign: "right" }}>{formatCurrencyTotals(selectedTotals)}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, textAlign: "right" }}>{formatCurrencyTotals(selectedTotals, currencyOptions)}</div>
             </div>
             {selectedExps.length === 0 && <div style={{ textAlign: "center", color: "#aaa", padding: "30px 0", fontSize: 16 }}>這天沒有消費紀錄</div>}
             {selectedExps.map(e => (
@@ -601,7 +637,7 @@ export default function App() {
               <div key={p.id} onClick={() => { setActiveProject(p); setModal("project_detail"); }} style={{ background: "#fff", borderRadius: 14, padding: "16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,.06)", cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div><div style={{ fontWeight: 700, fontSize: 18 }}>📁 {p.name}</div>{p.desc && <div style={{ fontSize: 14, color: "#8e8e93", marginTop: 3 }}>{p.desc}</div>}</div>
-                  <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 19 }}>{formatCurrencyTotals(totals)}</div><div style={{ fontSize: 14, color: "#8e8e93" }}>{cnt} 筆 · 約 TWD {fmt(twdTotal)}</div></div>
+                  <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 19 }}>{formatCurrencyTotals(totals, currencyOptions)}</div><div style={{ fontSize: 14, color: "#8e8e93" }}>{cnt} 筆 · 約 TWD {fmt(twdTotal)}</div></div>
                 </div>
                 {p.budget && <><div style={{ marginTop: 10, background: "#f0f0f5", borderRadius: 8, height: 6, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: pct > 80 ? "#ff3b30" : "#34c759", borderRadius: 8 }} /></div><div style={{ fontSize: 13, color: "#8e8e93", marginTop: 4 }}>預算 {p.currency || "TWD"} {fmt(p.budget)}（{pct}%）</div></>}
               </div>
@@ -628,6 +664,7 @@ export default function App() {
           statsSubpayment={statsSubpayment}
           statsTo={statsTo}
           statsTotals={statsTotals}
+          currencyOptions={currencyOptions}
           setShowStatsFilter={setShowStatsFilter}
           setStatsCategory={setStatsCategory}
           setStatsFrom={setStatsFrom}
@@ -654,11 +691,12 @@ export default function App() {
             <input value={newParent} onChange={e => setNewParent(e.target.value)} placeholder={settingsType === "category" ? "新增類別（如：健身）" : "新增付款方式（如：數位帳戶）"} style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 16, outline: "none" }} onKeyDown={e => e.key === "Enter" && addParent()} />
             <button onClick={addParent} style={{ padding: "10px 14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 10, fontSize: 22, cursor: "pointer" }}>＋</button>
           </div>
-          {Object.entries(getMap()).map(([parent, children]) => (
+          {Object.entries(getMap()).map(([parent, children], parentIdx, parentEntries) => (
             <div key={parent} style={{ background: "#fff", borderRadius: 14, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
               <div onClick={() => setExpandedParent(expandedParent === parent ? null : parent)} style={{ display: "flex", alignItems: "center", padding: "14px 16px", cursor: "pointer" }}>
                 <div style={{ flex: 1, fontWeight: 600, fontSize: 17 }}>{settingsType === "category" ? (catIcons[parent] || "📌") + " " : ""}{parent}</div>
                 <div style={{ fontSize: 14, color: "#8e8e93", marginRight: 8 }}>{children.length} 個子項目</div>
+                <MoveButtons onUp={e => { e.stopPropagation(); moveParent(parent, -1); }} onDown={e => { e.stopPropagation(); moveParent(parent, 1); }} disableUp={parentIdx === 0} disableDown={parentIdx === parentEntries.length - 1} />
                 <button onClick={e => { e.stopPropagation(); deleteParent(parent); }} style={{ background: "none", border: "none", color: "#ff3b30", fontSize: 20, cursor: "pointer", padding: "0 4px" }}>🗑</button>
                 <div style={{ fontSize: 14, color: "#8e8e93", marginLeft: 4 }}>{expandedParent === parent ? "▲" : "▼"}</div>
               </div>
@@ -667,6 +705,7 @@ export default function App() {
                 {children.map((child, idx) => (
                   <div key={idx} style={{ display: "flex", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f5f5f7" }}>
                     <div style={{ flex: 1, fontSize: 16 }}>{child}</div>
+                    <MoveButtons onUp={() => moveChild(parent, idx, -1)} onDown={() => moveChild(parent, idx, 1)} disableUp={idx === 0} disableDown={idx === children.length - 1} compact />
                     <button onClick={() => deleteChild(parent, idx)} style={{ background: "none", border: "none", color: "#ff3b30", fontSize: 18, cursor: "pointer" }}>✕</button>
                   </div>
                 ))}
@@ -683,11 +722,12 @@ export default function App() {
               <input value={newCurrency.code} onChange={e => setNewCurrency({ ...newCurrency, code: e.target.value.toUpperCase().slice(0, 3) })} placeholder="GBP" maxLength={3} style={{ width: 76, padding: "10px 8px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 16, outline: "none", textTransform: "uppercase" }} onKeyDown={e => e.key === "Enter" && addCurrency()} />
               <button onClick={addCurrency} style={{ padding: "10px 14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 10, fontSize: 22, cursor: "pointer" }}>＋</button>
             </div>
-            {currencyOptions.map(currency => {
+            {currencyOptions.map((currency, idx) => {
               const isBuiltin = BUILTIN_CURRENCY_CODES.has(currency.code);
               return <div key={currency.code} style={{ background: "#fff", borderRadius: 14, padding: "14px 16px", marginBottom: 10, display: "flex", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
                 <div style={{ flex: 1, fontWeight: 600, fontSize: 17 }}>{currency.label}</div>
                 <div style={{ fontSize: 14, color: "#8e8e93", marginRight: 8 }}>{isBuiltin ? "內建" : "自訂"}</div>
+                <MoveButtons onUp={() => moveCurrency(currency.code, -1)} onDown={() => moveCurrency(currency.code, 1)} disableUp={idx === 0} disableDown={idx === currencyOptions.length - 1} />
                 {!isBuiltin && <button onClick={() => deleteCurrency(currency.code)} style={{ background: "none", border: "none", color: "#ff3b30", fontSize: 20, cursor: "pointer", padding: "0 4px" }}>🗑</button>}
               </div>;
             })}
@@ -744,7 +784,7 @@ export default function App() {
       {modal === "project_detail" && activeProject && <Modal title={`📁 ${activeProject.name}`} onClose={() => setModal(null)}>
         {activeProject.desc && <div style={{ fontSize: 15, color: "#8e8e93", marginBottom: 12 }}>{activeProject.desc}</div>}
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          <StatBox label="總消費" value={formatCurrencyTotals(projTotals(activeProject.id))} />
+          <StatBox label="總消費" value={formatCurrencyTotals(projTotals(activeProject.id), currencyOptions)} />
           <StatBox label="筆數" value={projExpenses(activeProject.id).length} />
           <StatBox label="約台幣" value={`TWD ${fmt(projectTwdTotal(activeProject))}`} />
           {activeProject.budget && <StatBox label="預算" value={`${activeProject.currency || "TWD"} ${fmt(activeProject.budget)}`} />}
@@ -777,7 +817,7 @@ const selStyle = { width: "100%", padding: "10px 12px", borderRadius: 10, border
 
 function StatsView(props) {
   const {
-    activeFilterCount, categories, catIcons, payments, projects, setQuickRange, showStatsFilter,
+    activeFilterCount, categories, catIcons, currencyOptions, payments, projects, setQuickRange, showStatsFilter,
     statsByCategory, statsByPayment, statsCategory, statsFiltered, statsFrom,
     statsPayment, statsProject, statsSubcategory, statsSubpayment, statsTo,
     statsTotals, setShowStatsFilter, setStatsCategory, setStatsFrom, setStatsPayment,
@@ -853,7 +893,7 @@ function StatsView(props) {
         {statsProject && statsProject !== "__none__" && ` · 📁${projects.find(p => p.id === statsProject)?.name || ""}`}
         {statsProject === "__none__" && " · 未指定專案"}
       </div>
-      <CurrencyTotals totals={statsTotals} size={28} />
+      <CurrencyTotals options={currencyOptions} totals={statsTotals} size={28} />
       <div style={{ fontSize: 15, opacity: 0.6, marginTop: 4 }}>{statsFiltered.length} 筆消費</div>
     </div>
 
@@ -960,8 +1000,16 @@ function IconSelect({ value, onChange }) {
   </select>;
 }
 
-function CurrencyTotals({ totals, size = 18, color = "inherit", align = "left" }) {
-  const entries = orderedCurrencyEntries(totals);
+function MoveButtons({ onUp, onDown, disableUp, disableDown, compact = false }) {
+  const style = { background: "none", border: "none", color: "#007aff", fontSize: compact ? 16 : 18, cursor: "pointer", padding: compact ? "0 3px" : "0 4px", opacity: 1 };
+  return <div style={{ display: "flex", marginRight: compact ? 2 : 4 }}>
+    <button aria-label="上移" title="上移" onClick={onUp} disabled={disableUp} style={{ ...style, opacity: disableUp ? 0.25 : 1 }}>↑</button>
+    <button aria-label="下移" title="下移" onClick={onDown} disabled={disableDown} style={{ ...style, opacity: disableDown ? 0.25 : 1 }}>↓</button>
+  </div>;
+}
+
+function CurrencyTotals({ options = CURRENCY_OPTIONS, totals, size = 18, color = "inherit", align = "left" }) {
+  const entries = orderedCurrencyEntries(totals, options);
   if (entries.length === 0) entries.push(["TWD", 0]);
   return <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: align === "right" ? "flex-end" : "flex-start" }}>
     {entries.map(([code, amt]) => <div key={code} style={{ fontSize: size, fontWeight: 700, color, lineHeight: 1.15 }}>{code} {fmt(amt)}</div>)}
