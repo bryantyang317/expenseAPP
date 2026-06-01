@@ -295,6 +295,7 @@ export default function App() {
     showToast("✅ 已新增");
   };
   const deleteParent = async key => {
+    if (!window.confirm(`確定要刪除「${key}」嗎？`)) return;
     const m = { ...getMap() };
     delete m[key];
     await setMap(m);
@@ -314,6 +315,8 @@ export default function App() {
     showToast("✅ 已新增子項目");
   };
   const deleteChild = async (parent, idx) => {
+    const child = getMap()[parent]?.[idx] || "";
+    if (!window.confirm(`確定要刪除「${child}」嗎？`)) return;
     const m = { ...getMap() };
     m[parent] = m[parent].filter((_, i) => i !== idx);
     await setMap(m);
@@ -346,6 +349,8 @@ export default function App() {
     showToast("✅ 已新增幣別");
   };
   const deleteCurrency = async code => {
+    const currency = customCurrencies.find(c => c.code === code);
+    if (!window.confirm(`確定要刪除「${currency?.label || code}」嗎？`)) return;
     await saveCustomCurrencies(customCurrencies.filter(c => c.code !== code));
     await saveCurrencyOrder(currencyOrderCodes.filter(item => item !== code));
     showToast("已刪除幣別");
