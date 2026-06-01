@@ -21,9 +21,10 @@ const DEFAULT_PAYMENTS = {
 const DEFAULT_CAT_ICONS = { "餐飲": "🍜", "交通": "🚌", "住宿": "🏨", "購物": "🛍️", "娛樂": "🎭", "醫療": "💊", "日用品": "🧴", "旅遊": "✈️", "其他": "📌" };
 const CATEGORY_ICON_OPTIONS = ["📌", "🍜", "☕", "🍱", "🚌", "🚕", "🏨", "🏠", "🛍️", "🛒", "🎭", "🎬", "🎮", "💊", "🏥", "🧴", "🧹", "✈️", "🎒", "🏋️", "📚", "💼", "🎁", "💡", "📱", "🐾"];
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
-const CASH_CURRENCIES = ["台幣TWD", "日幣JPY", "美金USD", "歐元EUR", "人民幣CNY", "韓圜KRW"];
+const CASH_CURRENCIES = ["台幣TWD", "日圓JPY", "美金USD", "歐元EUR", "人民幣CNY", "韓元KRW"];
 const CURRENCY_OPTIONS = CASH_CURRENCIES.map(label => ({ label, code: label.slice(-3) }));
 const CURRENCY_LABELS = new Set(CASH_CURRENCIES);
+const BUILTIN_CURRENCY_CODES = new Set(CURRENCY_OPTIONS.map(c => c.code));
 
 const fmt = n => Number(n).toLocaleString("zh-TW");
 const currencyOrder = code => {
@@ -108,6 +109,9 @@ export default function App() {
   const [newParent, setNewParent] = useState("");
   const [newParentIcon, setNewParentIcon] = useState("📌");
   const [newChild, setNewChild] = useState({});
+  const [customCurrencies, setCustomCurrencies] = useState([]);
+  const [newCurrency, setNewCurrency] = useState({ name: "", code: "" });
+  const currencyOptions = [...CURRENCY_OPTIONS, ...customCurrencies];
 
   const now = new Date();
   const [statsFrom, setStatsFrom] = useState(monthStart(now.getFullYear(), now.getMonth()));
@@ -126,11 +130,13 @@ export default function App() {
       const c = await load("cat_v2") || DEFAULT_CATEGORIES;
       const ci = { ...DEFAULT_CAT_ICONS, ...await load("cat_icons_v1") };
       const pm = normalizePayments(await load("pay_v2"));
+      const cc = await load("currency_v1") || [];
       setProjects(p);
       setExpenses(e);
       setCategories(c);
       setCatIcons(ci);
       setPayments(pm);
+      setCustomCurrencies(cc);
       await save("pay_v2", pm);
       setReady(true);
     })();
@@ -155,6 +161,10 @@ export default function App() {
   const saveCatIcons = async icons => {
     setCatIcons(icons);
     await save("cat_icons_v1", icons);
+  };
+  const saveCustomCurrencies = async currencies => {
+    setCustomCurrencies(currencies);
+    await save("currency_v1", currencies);
   };
   const savePayments = async p => {
     setPayments(p);
@@ -297,6 +307,20 @@ export default function App() {
     m[parent] = m[parent].filter((_, i) => i !== idx);
     await setMap(m);
     showToast("已刪除");
+  };
+  const addCurrency = async () => {
+    const name = newCurrency.name.trim();
+    const code = newCurrency.code.trim().toUpperCase();
+    if (!name) return showToast("請輸入幣別名稱");
+    if (!/^[A-Z]{3}$/.test(code)) return showToast("請輸入三碼英文幣別代碼");
+    if (currencyOptions.some(c => c.code === code)) return showToast("此幣別代碼已存在");
+    await saveCustomCurrencies([...customCurrencies, { label: `${name}${code}`, code }]);
+    setNewCurrency({ name: "", code: "" });
+    showToast("✅ 已新增幣別");
+  };
+  const deleteCurrency = async code => {
+    await saveCustomCurrencies(customCurrencies.filter(c => c.code !== code));
+    showToast("已刪除幣別");
   };
 
   const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
@@ -621,11 +645,11 @@ export default function App() {
         {tab === "settings" && <div style={{ padding: "14px 12px 0" }}>
           <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>項目設定</div>
           <div style={{ display: "flex", background: "#e5e5ea", borderRadius: 10, padding: 3, marginBottom: 18 }}>
-            {[["category", "🍜 消費類別"], ["payment", "💳 付款方式"]].map(([k, l]) => (
+            {[["category", "🍜 消費類別"], ["payment", "💳 付款方式"], ["currency", "💱 幣別"]].map(([k, l]) => (
               <button key={k} onClick={() => { setSettingsType(k); setExpandedParent(null); setNewParentIcon("📌"); }} style={{ flex: 1, padding: "8px 0", border: "none", borderRadius: 8, fontSize: 15, fontWeight: 600, background: settingsType === k ? "#fff" : "transparent", color: settingsType === k ? "#1c1c1e" : "#8e8e93", cursor: "pointer", boxShadow: settingsType === k ? "0 1px 4px rgba(0,0,0,.1)" : "none" }}>{l}</button>
             ))}
           </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {settingsType !== "currency" && <><div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             {settingsType === "category" && <IconSelect value={newParentIcon} onChange={setNewParentIcon} />}
             <input value={newParent} onChange={e => setNewParent(e.target.value)} placeholder={settingsType === "category" ? "新增類別（如：健身）" : "新增付款方式（如：數位帳戶）"} style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 16, outline: "none" }} onKeyDown={e => e.key === "Enter" && addParent()} />
             <button onClick={addParent} style={{ padding: "10px 14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 10, fontSize: 22, cursor: "pointer" }}>＋</button>
@@ -652,7 +676,22 @@ export default function App() {
                 </div>
               </div>}
             </div>
-          ))}
+          ))}</>}
+          {settingsType === "currency" && <>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              <input value={newCurrency.name} onChange={e => setNewCurrency({ ...newCurrency, name: e.target.value })} placeholder="幣別名稱（如：英鎊）" style={{ flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 16, outline: "none" }} />
+              <input value={newCurrency.code} onChange={e => setNewCurrency({ ...newCurrency, code: e.target.value.toUpperCase().slice(0, 3) })} placeholder="GBP" maxLength={3} style={{ width: 76, padding: "10px 8px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 16, outline: "none", textTransform: "uppercase" }} onKeyDown={e => e.key === "Enter" && addCurrency()} />
+              <button onClick={addCurrency} style={{ padding: "10px 14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 10, fontSize: 22, cursor: "pointer" }}>＋</button>
+            </div>
+            {currencyOptions.map(currency => {
+              const isBuiltin = BUILTIN_CURRENCY_CODES.has(currency.code);
+              return <div key={currency.code} style={{ background: "#fff", borderRadius: 14, padding: "14px 16px", marginBottom: 10, display: "flex", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
+                <div style={{ flex: 1, fontWeight: 600, fontSize: 17 }}>{currency.label}</div>
+                <div style={{ fontSize: 14, color: "#8e8e93", marginRight: 8 }}>{isBuiltin ? "內建" : "自訂"}</div>
+                {!isBuiltin && <button onClick={() => deleteCurrency(currency.code)} style={{ background: "none", border: "none", color: "#ff3b30", fontSize: 20, cursor: "pointer", padding: "0 4px" }}>🗑</button>}
+              </div>;
+            })}
+          </>}
         </div>}
       </div>
 
@@ -665,7 +704,7 @@ export default function App() {
         <TwoLevelSelect map={categories} parentValue={form.category} childValue={form.subcategory} onParentChange={v => setForm({ ...form, category: v, subcategory: "" })} onChildChange={v => setForm({ ...form, subcategory: v })} parentPlaceholder="選擇類別" childPlaceholder="選擇子類別（選填）" />
         <Label>付款方式</Label>
         <TwoLevelSelect map={payments} parentValue={form.payment} childValue={form.subpayment} onParentChange={v => setForm({ ...form, payment: v, subpayment: "" })} onChildChange={v => setForm({ ...form, subpayment: v })} parentPlaceholder="選擇付款方式" childPlaceholder="選擇子項目（選填）" />
-        <Label>付款幣別</Label><CurrencySelect value={form.currency} onChange={v => setForm({ ...form, currency: v })} />
+        <Label>付款幣別</Label><CurrencySelect options={currencyOptions} value={form.currency} onChange={v => setForm({ ...form, currency: v })} />
         <Label>日期時間</Label><Input type="datetime-local" value={form.datetime} onChange={v => setForm({ ...form, datetime: v })} />
         {projects.length > 0 && <><Label>專案（選填）</Label>
           <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
@@ -682,7 +721,7 @@ export default function App() {
         <TwoLevelSelect map={categories} parentValue={form.category} childValue={form.subcategory} onParentChange={v => setForm({ ...form, category: v, subcategory: "" })} onChildChange={v => setForm({ ...form, subcategory: v })} parentPlaceholder="選擇類別" childPlaceholder="選擇子類別（選填）" />
         <Label>付款方式</Label>
         <TwoLevelSelect map={payments} parentValue={form.payment} childValue={form.subpayment} onParentChange={v => setForm({ ...form, payment: v, subpayment: "" })} onChildChange={v => setForm({ ...form, subpayment: v })} parentPlaceholder="選擇付款方式" childPlaceholder="選擇子項目（選填）" />
-        <Label>付款幣別</Label><CurrencySelect value={form.currency} onChange={v => setForm({ ...form, currency: v })} />
+        <Label>付款幣別</Label><CurrencySelect options={currencyOptions} value={form.currency} onChange={v => setForm({ ...form, currency: v })} />
         <Label>日期時間</Label><Input type="datetime-local" value={form.datetime} onChange={v => setForm({ ...form, datetime: v })} />
         {projects.length > 0 && <><Label>專案（選填）</Label>
           <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
@@ -693,12 +732,12 @@ export default function App() {
       </Modal>}
 
       {modal === "add_project" && <Modal title="新增專案" onClose={() => setModal(null)}>
-        <ProjectForm project={newProj} setProject={setNewProj} onFetchRate={() => fetchBotRateForProject()} rateLoading={rateLoading} />
+        <ProjectForm currencyOptions={currencyOptions} project={newProj} setProject={setNewProj} onFetchRate={() => fetchBotRateForProject()} rateLoading={rateLoading} />
         <Btn onClick={addProject}>確認新增</Btn>
       </Modal>}
 
       {modal === "edit_project" && activeProject && <Modal title="編輯專案" onClose={() => setModal("project_detail")}>
-        <ProjectForm project={newProj} setProject={setNewProj} onFetchRate={() => fetchBotRateForProject()} rateLoading={rateLoading} />
+        <ProjectForm currencyOptions={currencyOptions} project={newProj} setProject={setNewProj} onFetchRate={() => fetchBotRateForProject()} rateLoading={rateLoading} />
         <Btn onClick={updateProject}>儲存變更</Btn>
       </Modal>}
 
@@ -892,19 +931,19 @@ function Btn({ onClick, children }) {
   return <button onClick={onClick} style={{ marginTop: 20, width: "100%", padding: "14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 12, fontSize: 18, fontWeight: 600, cursor: "pointer" }}>{children}</button>;
 }
 
-function CurrencySelect({ value, onChange }) {
+function CurrencySelect({ options, value, onChange }) {
   return <select value={value} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
-    {CURRENCY_OPTIONS.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+    {options.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
   </select>;
 }
 
-function ProjectForm({ project, setProject, onFetchRate, rateLoading }) {
+function ProjectForm({ currencyOptions, project, setProject, onFetchRate, rateLoading }) {
   return <>
     <Label>專案名稱</Label><Input placeholder="2026 東京旅遊" value={project.name} onChange={v => setProject({ ...project, name: v })} />
     <Label>說明（選填）</Label><Input placeholder="春季賞花之旅…" value={project.desc} onChange={v => setProject({ ...project, desc: v })} />
     <Label>主要統計幣別</Label>
     <select value={project.currency} onChange={e => setProject({ ...project, currency: e.target.value, exchangeRate: e.target.value === "TWD" ? "1" : project.exchangeRate })} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
-      {CURRENCY_OPTIONS.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+      {currencyOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
     </select>
     <Label>{project.currency}/台幣TWD 匯率</Label>
     <div style={{ display: "flex", gap: 8 }}>
