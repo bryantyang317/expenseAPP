@@ -466,32 +466,32 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  if (!ready) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontSize: 18, color: "#888" }}>載入中…</div>;
+  if (!ready) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontSize: 20, color: "#888" }}>載入中…</div>;
 
   return (
     <div style={{ maxWidth: 430, margin: "0 auto", fontFamily: "'Helvetica Neue',Arial,sans-serif", background: "#f5f5f7", minHeight: "100vh", position: "relative" }}>
-      {toast && <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: "#333", color: "#fff", padding: "10px 22px", borderRadius: 20, zIndex: 999, fontSize: 14, whiteSpace: "nowrap" }}>{toast}</div>}
+      {toast && <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: "#333", color: "#fff", padding: "10px 22px", borderRadius: 20, zIndex: 999, fontSize: 16, whiteSpace: "nowrap" }}>{toast}</div>}
 
       <div style={{ background: "linear-gradient(135deg,#1c1c1e,#2c2c2e)", color: "#fff", padding: "48px 20px 18px", position: "relative", zIndex: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
-            <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 2 }}>
+            <div style={{ fontSize: 14, opacity: 0.75, marginBottom: 2 }}>
               <span style={{ opacity: 0.72 }}>{calMonth.y}年{calMonth.m + 1}月 · 月消費</span>
               <span style={{ color: "#64d2ff", fontWeight: 700 }}> · 約 TWD {fmt(monthTwdTotal)}</span>
             </div>
-            <CurrencyTotals totals={monthTotals} size={24} />
+            <CurrencyTotals totals={monthTotals} size={26} />
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 11, opacity: 0.5 }}>選取日期</div>
-            <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>{selDateLabel}</div>
-            <CurrencyTotals totals={selectedTotals} size={13} color="#30d158" align="right" />
+            <div style={{ fontSize: 13, opacity: 0.5 }}>選取日期</div>
+            <div style={{ fontSize: 15, fontWeight: 600, opacity: 0.85 }}>{selDateLabel}</div>
+            <CurrencyTotals totals={selectedTotals} size={15} color="#30d158" align="right" />
           </div>
         </div>
       </div>
 
       <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e5e5ea", position: "sticky", top: 0, zIndex: 9 }}>
         {[["home", "💳 消費"], ["projects", "📁 專案"], ["stats", "📊 統計"], ["settings", "⚙️ 設定"]].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: "11px 0", border: "none", background: "none", fontSize: 12, fontWeight: tab === k ? 700 : 400, color: tab === k ? "#007aff" : "#8e8e93", borderBottom: tab === k ? "2px solid #007aff" : "2px solid transparent", cursor: "pointer" }}>{l}</button>
+          <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: "11px 0", border: "none", background: "none", fontSize: 14, fontWeight: tab === k ? 700 : 400, color: tab === k ? "#007aff" : "#8e8e93", borderBottom: tab === k ? "2px solid #007aff" : "2px solid transparent", cursor: "pointer" }}>{l}</button>
         ))}
       </div>
 
@@ -499,12 +499,12 @@ export default function App() {
         {tab === "home" && <>
           <div style={{ background: "#fff", margin: "12px 12px 0", borderRadius: 16, padding: "14px 12px", boxShadow: "0 1px 6px rgba(0,0,0,.07)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <button onClick={() => setCalMonth(({ y, m }) => m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 })} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#007aff", padding: "0 6px" }}>‹</button>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{calMonth.y}年 {calMonth.m + 1}月</div>
-              <button onClick={() => setCalMonth(({ y, m }) => m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 })} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#007aff", padding: "0 6px" }}>›</button>
+              <button onClick={() => setCalMonth(({ y, m }) => m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 })} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#007aff", padding: "0 6px" }}>‹</button>
+              <div style={{ fontWeight: 700, fontSize: 17 }}>{calMonth.y}年 {calMonth.m + 1}月</div>
+              <button onClick={() => setCalMonth(({ y, m }) => m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 })} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#007aff", padding: "0 6px" }}>›</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", marginBottom: 4 }}>
-              {WEEKDAYS.map((w, i) => <div key={w} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: i === 0 ? "#ff3b30" : i === 6 ? "#007aff" : "#8e8e93", padding: "2px 0" }}>{w}</div>)}
+              {WEEKDAYS.map((w, i) => <div key={w} style={{ textAlign: "center", fontSize: 13, fontWeight: 600, color: i === 0 ? "#ff3b30" : i === 6 ? "#007aff" : "#8e8e93", padding: "2px 0" }}>{w}</div>)}
             </div>
             {(() => {
               const { y, m } = calMonth;
@@ -528,8 +528,8 @@ export default function App() {
                     const realDow = new Date(y, m, d).getDay();
                     return (
                       <div key={ci} onClick={() => setSelectedDate(ds)} style={{ textAlign: "center", padding: "4px 2px", cursor: "pointer", borderRadius: 10, background: isSel ? "#007aff" : "transparent" }}>
-                        <div style={{ fontSize: 14, fontWeight: isToday ? 700 : 400, color: isSel ? "#fff" : realDow === 0 ? "#ff3b30" : realDow === 6 ? "#007aff" : "#1c1c1e" }}>{d}</div>
-                        {hasDot ? <div style={{ fontSize: 9, color: isSel ? "rgba(255,255,255,.8)" : "#30d158", fontWeight: 600, marginTop: -1, lineHeight: 1.2 }}>{dayCodes.length === 1 ? `${dayCodes[0]} ${fmt(dayTotals[dayCodes[0]])}` : `${dayCodes.length}幣別`}</div> : <div style={{ height: 9 }} />}
+                        <div style={{ fontSize: 16, fontWeight: isToday ? 700 : 400, color: isSel ? "#fff" : realDow === 0 ? "#ff3b30" : realDow === 6 ? "#007aff" : "#1c1c1e" }}>{d}</div>
+                        {hasDot ? <div style={{ fontSize: 11, color: isSel ? "rgba(255,255,255,.8)" : "#30d158", fontWeight: 600, marginTop: -1, lineHeight: 1.2 }}>{dayCodes.length === 1 ? `${dayCodes[0]} ${fmt(dayTotals[dayCodes[0]])}` : `${dayCodes.length}幣別`}</div> : <div style={{ height: 9 }} />}
                       </div>
                     );
                   })}
@@ -539,22 +539,22 @@ export default function App() {
           </div>
           <div style={{ padding: "14px 12px 0" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#1c1c1e" }}>{selDateLabel}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, textAlign: "right" }}>{formatCurrencyTotals(selectedTotals)}</div>
+              <div style={{ fontSize: 17, fontWeight: 600, color: "#1c1c1e" }}>{selDateLabel}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, textAlign: "right" }}>{formatCurrencyTotals(selectedTotals)}</div>
             </div>
-            {selectedExps.length === 0 && <div style={{ textAlign: "center", color: "#aaa", padding: "30px 0", fontSize: 14 }}>這天沒有消費紀錄</div>}
+            {selectedExps.length === 0 && <div style={{ textAlign: "center", color: "#aaa", padding: "30px 0", fontSize: 16 }}>這天沒有消費紀錄</div>}
             {selectedExps.map(e => (
               <div key={e.id} onClick={() => openExpenseEditor(e)} style={{ background: "#fff", borderRadius: 14, padding: "12px 14px", marginBottom: 9, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 1px 4px rgba(0,0,0,.06)", cursor: "pointer" }}>
-                <div style={{ fontSize: 24, width: 36, textAlign: "center" }}>{catIcons[e.category] || "📌"}</div>
+                <div style={{ fontSize: 26, width: 36, textAlign: "center" }}>{catIcons[e.category] || "📌"}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.store}</div>
-                  <div style={{ fontSize: 11, color: "#8e8e93", marginTop: 2 }}>{e.category}{e.subcategory ? ` › ${e.subcategory}` : ""} · {e.payment}{e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? ` › ${e.subpayment}` : ""} · {currencyCodeOf(e)}</div>
-                  <div style={{ fontSize: 11, color: "#8e8e93" }}>{e.datetime?.slice(11, 16) || ""}{e.project ? ` · 📁${projects.find(p => p.id === e.project)?.name || ""}` : ""}</div>
+                  <div style={{ fontWeight: 600, fontSize: 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.store}</div>
+                  <div style={{ fontSize: 13, color: "#8e8e93", marginTop: 2 }}>{e.category}{e.subcategory ? ` › ${e.subcategory}` : ""} · {e.payment}{e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? ` › ${e.subpayment}` : ""} · {currencyCodeOf(e)}</div>
+                  <div style={{ fontSize: 13, color: "#8e8e93" }}>{e.datetime?.slice(11, 16) || ""}{e.project ? ` · 📁${projects.find(p => p.id === e.project)?.name || ""}` : ""}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{currencyCodeOf(e)} {fmt(e.amount)}</div>
-                  {expenseTwdLabel(e) && <div style={{ fontSize: 11, color: "#007aff", fontWeight: 700, marginTop: 2 }}>{expenseTwdLabel(e)}</div>}
-                  <button onClick={ev => { ev.stopPropagation(); deleteExpense(e.id); }} style={{ border: "none", background: "none", color: "#ff3b30", fontSize: 11, cursor: "pointer", padding: "4px 0" }}>刪除</button>
+                  <div style={{ fontWeight: 700, fontSize: 17 }}>{currencyCodeOf(e)} {fmt(e.amount)}</div>
+                  {expenseTwdLabel(e) && <div style={{ fontSize: 13, color: "#007aff", fontWeight: 700, marginTop: 2 }}>{expenseTwdLabel(e)}</div>}
+                  <button onClick={ev => { ev.stopPropagation(); deleteExpense(e.id); }} style={{ border: "none", background: "none", color: "#ff3b30", fontSize: 13, cursor: "pointer", padding: "4px 0" }}>刪除</button>
                 </div>
               </div>
             ))}
@@ -563,10 +563,10 @@ export default function App() {
 
         {tab === "projects" && <div style={{ padding: "14px 12px 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>我的專案</div>
-            <button onClick={() => setModal("add_project")} style={{ background: "#007aff", color: "#fff", border: "none", borderRadius: 20, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>＋ 新增</button>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>我的專案</div>
+            <button onClick={() => setModal("add_project")} style={{ background: "#007aff", color: "#fff", border: "none", borderRadius: 20, padding: "6px 14px", fontSize: 15, cursor: "pointer" }}>＋ 新增</button>
           </div>
-          {projects.length === 0 && <div style={{ textAlign: "center", color: "#aaa", marginTop: 60, fontSize: 15 }}>尚無專案</div>}
+          {projects.length === 0 && <div style={{ textAlign: "center", color: "#aaa", marginTop: 60, fontSize: 17 }}>尚無專案</div>}
           {projects.map(p => {
             const totals = projTotals(p.id);
             const twdTotal = projectTwdTotal(p);
@@ -576,10 +576,10 @@ export default function App() {
             return (
               <div key={p.id} onClick={() => { setActiveProject(p); setModal("project_detail"); }} style={{ background: "#fff", borderRadius: 14, padding: "16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,.06)", cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div><div style={{ fontWeight: 700, fontSize: 16 }}>📁 {p.name}</div>{p.desc && <div style={{ fontSize: 12, color: "#8e8e93", marginTop: 3 }}>{p.desc}</div>}</div>
-                  <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 17 }}>{formatCurrencyTotals(totals)}</div><div style={{ fontSize: 12, color: "#8e8e93" }}>{cnt} 筆 · 約 TWD {fmt(twdTotal)}</div></div>
+                  <div><div style={{ fontWeight: 700, fontSize: 18 }}>📁 {p.name}</div>{p.desc && <div style={{ fontSize: 14, color: "#8e8e93", marginTop: 3 }}>{p.desc}</div>}</div>
+                  <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 19 }}>{formatCurrencyTotals(totals)}</div><div style={{ fontSize: 14, color: "#8e8e93" }}>{cnt} 筆 · 約 TWD {fmt(twdTotal)}</div></div>
                 </div>
-                {p.budget && <><div style={{ marginTop: 10, background: "#f0f0f5", borderRadius: 8, height: 6, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: pct > 80 ? "#ff3b30" : "#34c759", borderRadius: 8 }} /></div><div style={{ fontSize: 11, color: "#8e8e93", marginTop: 4 }}>預算 {p.currency || "TWD"} {fmt(p.budget)}（{pct}%）</div></>}
+                {p.budget && <><div style={{ marginTop: 10, background: "#f0f0f5", borderRadius: 8, height: 6, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: pct > 80 ? "#ff3b30" : "#34c759", borderRadius: 8 }} /></div><div style={{ fontSize: 13, color: "#8e8e93", marginTop: 4 }}>預算 {p.currency || "TWD"} {fmt(p.budget)}（{pct}%）</div></>}
               </div>
             );
           })}
@@ -619,36 +619,36 @@ export default function App() {
         />}
 
         {tab === "settings" && <div style={{ padding: "14px 12px 0" }}>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>項目設定</div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>項目設定</div>
           <div style={{ display: "flex", background: "#e5e5ea", borderRadius: 10, padding: 3, marginBottom: 18 }}>
             {[["category", "🍜 消費類別"], ["payment", "💳 付款方式"]].map(([k, l]) => (
-              <button key={k} onClick={() => { setSettingsType(k); setExpandedParent(null); setNewParentIcon("📌"); }} style={{ flex: 1, padding: "8px 0", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, background: settingsType === k ? "#fff" : "transparent", color: settingsType === k ? "#1c1c1e" : "#8e8e93", cursor: "pointer", boxShadow: settingsType === k ? "0 1px 4px rgba(0,0,0,.1)" : "none" }}>{l}</button>
+              <button key={k} onClick={() => { setSettingsType(k); setExpandedParent(null); setNewParentIcon("📌"); }} style={{ flex: 1, padding: "8px 0", border: "none", borderRadius: 8, fontSize: 15, fontWeight: 600, background: settingsType === k ? "#fff" : "transparent", color: settingsType === k ? "#1c1c1e" : "#8e8e93", cursor: "pointer", boxShadow: settingsType === k ? "0 1px 4px rgba(0,0,0,.1)" : "none" }}>{l}</button>
             ))}
           </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             {settingsType === "category" && <IconSelect value={newParentIcon} onChange={setNewParentIcon} />}
-            <input value={newParent} onChange={e => setNewParent(e.target.value)} placeholder={settingsType === "category" ? "新增類別（如：健身）" : "新增付款方式（如：數位帳戶）"} style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 14, outline: "none" }} onKeyDown={e => e.key === "Enter" && addParent()} />
-            <button onClick={addParent} style={{ padding: "10px 14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 10, fontSize: 20, cursor: "pointer" }}>＋</button>
+            <input value={newParent} onChange={e => setNewParent(e.target.value)} placeholder={settingsType === "category" ? "新增類別（如：健身）" : "新增付款方式（如：數位帳戶）"} style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 16, outline: "none" }} onKeyDown={e => e.key === "Enter" && addParent()} />
+            <button onClick={addParent} style={{ padding: "10px 14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 10, fontSize: 22, cursor: "pointer" }}>＋</button>
           </div>
           {Object.entries(getMap()).map(([parent, children]) => (
             <div key={parent} style={{ background: "#fff", borderRadius: 14, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
               <div onClick={() => setExpandedParent(expandedParent === parent ? null : parent)} style={{ display: "flex", alignItems: "center", padding: "14px 16px", cursor: "pointer" }}>
-                <div style={{ flex: 1, fontWeight: 600, fontSize: 15 }}>{settingsType === "category" ? (catIcons[parent] || "📌") + " " : ""}{parent}</div>
-                <div style={{ fontSize: 12, color: "#8e8e93", marginRight: 8 }}>{children.length} 個子項目</div>
-                <button onClick={e => { e.stopPropagation(); deleteParent(parent); }} style={{ background: "none", border: "none", color: "#ff3b30", fontSize: 18, cursor: "pointer", padding: "0 4px" }}>🗑</button>
-                <div style={{ fontSize: 12, color: "#8e8e93", marginLeft: 4 }}>{expandedParent === parent ? "▲" : "▼"}</div>
+                <div style={{ flex: 1, fontWeight: 600, fontSize: 17 }}>{settingsType === "category" ? (catIcons[parent] || "📌") + " " : ""}{parent}</div>
+                <div style={{ fontSize: 14, color: "#8e8e93", marginRight: 8 }}>{children.length} 個子項目</div>
+                <button onClick={e => { e.stopPropagation(); deleteParent(parent); }} style={{ background: "none", border: "none", color: "#ff3b30", fontSize: 20, cursor: "pointer", padding: "0 4px" }}>🗑</button>
+                <div style={{ fontSize: 14, color: "#8e8e93", marginLeft: 4 }}>{expandedParent === parent ? "▲" : "▼"}</div>
               </div>
               {expandedParent === parent && <div style={{ borderTop: "1px solid #f0f0f5", padding: "12px 16px" }}>
-                {children.length === 0 && <div style={{ color: "#aaa", fontSize: 13, marginBottom: 10 }}>尚無子項目</div>}
+                {children.length === 0 && <div style={{ color: "#aaa", fontSize: 15, marginBottom: 10 }}>尚無子項目</div>}
                 {children.map((child, idx) => (
                   <div key={idx} style={{ display: "flex", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f5f5f7" }}>
-                    <div style={{ flex: 1, fontSize: 14 }}>{child}</div>
-                    <button onClick={() => deleteChild(parent, idx)} style={{ background: "none", border: "none", color: "#ff3b30", fontSize: 16, cursor: "pointer" }}>✕</button>
+                    <div style={{ flex: 1, fontSize: 16 }}>{child}</div>
+                    <button onClick={() => deleteChild(parent, idx)} style={{ background: "none", border: "none", color: "#ff3b30", fontSize: 18, cursor: "pointer" }}>✕</button>
                   </div>
                 ))}
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                  <input value={newChild[parent] || ""} onChange={e => setNewChild({ ...newChild, [parent]: e.target.value })} placeholder="新增子項目…" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #e5e5ea", fontSize: 13, outline: "none" }} onKeyDown={e => e.key === "Enter" && addChild(parent)} />
-                  <button onClick={() => addChild(parent)} style={{ padding: "8px 14px", background: "#34c759", color: "#fff", border: "none", borderRadius: 8, fontSize: 16, cursor: "pointer" }}>＋</button>
+                  <input value={newChild[parent] || ""} onChange={e => setNewChild({ ...newChild, [parent]: e.target.value })} placeholder="新增子項目…" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #e5e5ea", fontSize: 15, outline: "none" }} onKeyDown={e => e.key === "Enter" && addChild(parent)} />
+                  <button onClick={() => addChild(parent)} style={{ padding: "8px 14px", background: "#34c759", color: "#fff", border: "none", borderRadius: 8, fontSize: 18, cursor: "pointer" }}>＋</button>
                 </div>
               </div>}
             </div>
@@ -656,7 +656,7 @@ export default function App() {
         </div>}
       </div>
 
-      {(tab === "home" || tab === "projects") && <button onClick={() => { setForm({ amount: "", store: "", category: "", subcategory: "", payment: "", subpayment: "", currency: "TWD", note: "", datetime: `${selectedDate}T${new Date().toTimeString().slice(0, 5)}`, project: "" }); setModal("add_expense"); }} style={{ position: "fixed", bottom: 30, right: 24, width: 56, height: 56, borderRadius: 28, background: "#007aff", color: "#fff", fontSize: 26, border: "none", boxShadow: "0 4px 16px rgba(0,122,255,.5)", cursor: "pointer", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>＋</button>}
+      {(tab === "home" || tab === "projects") && <button onClick={() => { setForm({ amount: "", store: "", category: "", subcategory: "", payment: "", subpayment: "", currency: "TWD", note: "", datetime: `${selectedDate}T${new Date().toTimeString().slice(0, 5)}`, project: "" }); setModal("add_expense"); }} style={{ position: "fixed", bottom: 30, right: 24, width: 56, height: 56, borderRadius: 28, background: "#007aff", color: "#fff", fontSize: 28, border: "none", boxShadow: "0 4px 16px rgba(0,122,255,.5)", cursor: "pointer", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>＋</button>}
 
       {modal === "add_expense" && <Modal title="新增消費" onClose={() => setModal(null)}>
         <Label>金額</Label><Input type="number" placeholder="0" value={form.amount} onChange={v => setForm({ ...form, amount: v })} />
@@ -668,7 +668,7 @@ export default function App() {
         <Label>付款幣別</Label><CurrencySelect value={form.currency} onChange={v => setForm({ ...form, currency: v })} />
         <Label>日期時間</Label><Input type="datetime-local" value={form.datetime} onChange={v => setForm({ ...form, datetime: v })} />
         {projects.length > 0 && <><Label>專案（選填）</Label>
-          <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 15, background: "#fff", boxSizing: "border-box" }}>
+          <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
             <option value="">不指定</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select></>}
         <Label>備註（選填）</Label><Input placeholder="備註…" value={form.note} onChange={v => setForm({ ...form, note: v })} />
@@ -685,7 +685,7 @@ export default function App() {
         <Label>付款幣別</Label><CurrencySelect value={form.currency} onChange={v => setForm({ ...form, currency: v })} />
         <Label>日期時間</Label><Input type="datetime-local" value={form.datetime} onChange={v => setForm({ ...form, datetime: v })} />
         {projects.length > 0 && <><Label>專案（選填）</Label>
-          <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 15, background: "#fff", boxSizing: "border-box" }}>
+          <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
             <option value="">不指定</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select></>}
         <Label>備註（選填）</Label><Input placeholder="備註…" value={form.note} onChange={v => setForm({ ...form, note: v })} />
@@ -703,38 +703,38 @@ export default function App() {
       </Modal>}
 
       {modal === "project_detail" && activeProject && <Modal title={`📁 ${activeProject.name}`} onClose={() => setModal(null)}>
-        {activeProject.desc && <div style={{ fontSize: 13, color: "#8e8e93", marginBottom: 12 }}>{activeProject.desc}</div>}
+        {activeProject.desc && <div style={{ fontSize: 15, color: "#8e8e93", marginBottom: 12 }}>{activeProject.desc}</div>}
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
           <StatBox label="總消費" value={formatCurrencyTotals(projTotals(activeProject.id))} />
           <StatBox label="筆數" value={projExpenses(activeProject.id).length} />
           <StatBox label="約台幣" value={`TWD ${fmt(projectTwdTotal(activeProject))}`} />
           {activeProject.budget && <StatBox label="預算" value={`${activeProject.currency || "TWD"} ${fmt(activeProject.budget)}`} />}
         </div>
-        <div style={{ fontSize: 12, color: "#8e8e93", marginBottom: 12 }}>主幣別 {activeProject.currency || "TWD"} · 匯率 {(activeProject.currency || "TWD")}/TWD = {activeProject.exchangeRate || 1}</div>
-        <button onClick={() => openProjectEditor(activeProject)} style={{ width: "100%", padding: "10px", background: "#007aff", border: "none", color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 14 }}>編輯專案</button>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>消費明細</div>
-        {projExpenses(activeProject.id).length === 0 && <div style={{ color: "#aaa", fontSize: 13, textAlign: "center", padding: "20px 0" }}>尚無消費紀錄</div>}
+        <div style={{ fontSize: 14, color: "#8e8e93", marginBottom: 12 }}>主幣別 {activeProject.currency || "TWD"} · 匯率 {(activeProject.currency || "TWD")}/TWD = {activeProject.exchangeRate || 1}</div>
+        <button onClick={() => openProjectEditor(activeProject)} style={{ width: "100%", padding: "10px", background: "#007aff", border: "none", color: "#fff", borderRadius: 10, fontSize: 16, fontWeight: 600, cursor: "pointer", marginBottom: 14 }}>編輯專案</button>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>消費明細</div>
+        {projExpenses(activeProject.id).length === 0 && <div style={{ color: "#aaa", fontSize: 15, textAlign: "center", padding: "20px 0" }}>尚無消費紀錄</div>}
         {projExpenses(activeProject.id).sort((a, b) => a.datetime > b.datetime ? -1 : 1).map(e => (
           <div key={e.id} onClick={() => openExpenseEditor(e)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #f0f0f5", cursor: "pointer" }}>
-            <div style={{ fontSize: 20 }}>{catIcons[e.category] || "📌"}</div>
+            <div style={{ fontSize: 22 }}>{catIcons[e.category] || "📌"}</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{e.store}</div>
-              <div style={{ fontSize: 11, color: "#8e8e93" }}>{e.datetime?.slice(0, 10)} {e.datetime?.slice(11, 16)} · {e.category}{e.subcategory ? ` › ${e.subcategory}` : ""}</div>
-              <div style={{ fontSize: 11, color: "#8e8e93" }}>{e.payment}{e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? ` › ${e.subpayment}` : ""} · {currencyCodeOf(e)}</div>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>{e.store}</div>
+              <div style={{ fontSize: 13, color: "#8e8e93" }}>{e.datetime?.slice(0, 10)} {e.datetime?.slice(11, 16)} · {e.category}{e.subcategory ? ` › ${e.subcategory}` : ""}</div>
+              <div style={{ fontSize: 13, color: "#8e8e93" }}>{e.payment}{e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? ` › ${e.subpayment}` : ""} · {currencyCodeOf(e)}</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{currencyCodeOf(e)} {fmt(e.amount)}</div>
-              {expenseTwdLabel(e) && <div style={{ fontSize: 11, color: "#007aff", fontWeight: 700, marginTop: 2 }}>{expenseTwdLabel(e)}</div>}
+              <div style={{ fontWeight: 700, fontSize: 17 }}>{currencyCodeOf(e)} {fmt(e.amount)}</div>
+              {expenseTwdLabel(e) && <div style={{ fontSize: 13, color: "#007aff", fontWeight: 700, marginTop: 2 }}>{expenseTwdLabel(e)}</div>}
             </div>
           </div>
         ))}
-        <button onClick={() => deleteProject(activeProject.id)} style={{ marginTop: 20, width: "100%", padding: "12px", background: "none", border: "1px solid #ff3b30", color: "#ff3b30", borderRadius: 10, fontSize: 14, cursor: "pointer" }}>刪除此專案</button>
+        <button onClick={() => deleteProject(activeProject.id)} style={{ marginTop: 20, width: "100%", padding: "12px", background: "none", border: "1px solid #ff3b30", color: "#ff3b30", borderRadius: 10, fontSize: 16, cursor: "pointer" }}>刪除此專案</button>
       </Modal>}
     </div>
   );
 }
 
-const selStyle = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 14, background: "#fff", boxSizing: "border-box", outline: "none" };
+const selStyle = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 16, background: "#fff", boxSizing: "border-box", outline: "none" };
 
 function StatsView(props) {
   const {
@@ -749,29 +749,29 @@ function StatsView(props) {
 
   return <div style={{ padding: "14px 12px 0" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
-      <div style={{ fontSize: 16, fontWeight: 600 }}>統計分析</div>
+      <div style={{ fontSize: 18, fontWeight: 600 }}>統計分析</div>
       <div style={{ display: "flex", gap: 6 }}>
-        <button onClick={onExportStats} style={{ display: "flex", alignItems: "center", gap: 5, background: "#34c759", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>⬇ Excel</button>
-        <button onClick={() => setShowStatsFilter(!showStatsFilter)} style={{ display: "flex", alignItems: "center", gap: 5, background: activeFilterCount > 0 ? "#007aff" : "#e5e5ea", color: activeFilterCount > 0 ? "#fff" : "#555", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+        <button onClick={onExportStats} style={{ display: "flex", alignItems: "center", gap: 5, background: "#34c759", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>⬇ Excel</button>
+        <button onClick={() => setShowStatsFilter(!showStatsFilter)} style={{ display: "flex", alignItems: "center", gap: 5, background: activeFilterCount > 0 ? "#007aff" : "#e5e5ea", color: activeFilterCount > 0 ? "#fff" : "#555", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>
           ⚙ 篩選{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
         </button>
       </div>
     </div>
 
     {showStatsFilter && <div style={{ background: "#fff", borderRadius: 14, padding: "16px", marginBottom: 14, boxShadow: "0 1px 6px rgba(0,0,0,.07)" }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#8e8e93", marginBottom: 8 }}>快速區間</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 8 }}>快速區間</div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
         {[["thisMonth", "本月"], ["lastMonth", "上月"], ["thisYear", "今年"], ["all", "全部"]].map(([k, l]) => (
-          <button key={k} onClick={() => setQuickRange(k)} style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #e5e5ea", background: "#f5f5f7", fontSize: 12, cursor: "pointer", fontWeight: 500 }}>{l}</button>
+          <button key={k} onClick={() => setQuickRange(k)} style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #e5e5ea", background: "#f5f5f7", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>{l}</button>
         ))}
       </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>自訂日期區間</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>自訂日期區間</div>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
-        <input type="date" value={statsFrom} onChange={e => setStatsFrom(e.target.value)} style={{ flex: 1, padding: "8px 10px", borderRadius: 9, border: "1px solid #e5e5ea", fontSize: 13, outline: "none" }} />
-        <span style={{ color: "#8e8e93", fontSize: 13 }}>至</span>
-        <input type="date" value={statsTo} onChange={e => setStatsTo(e.target.value)} style={{ flex: 1, padding: "8px 10px", borderRadius: 9, border: "1px solid #e5e5ea", fontSize: 13, outline: "none" }} />
+        <input type="date" value={statsFrom} onChange={e => setStatsFrom(e.target.value)} style={{ flex: 1, padding: "8px 10px", borderRadius: 9, border: "1px solid #e5e5ea", fontSize: 15, outline: "none" }} />
+        <span style={{ color: "#8e8e93", fontSize: 15 }}>至</span>
+        <input type="date" value={statsTo} onChange={e => setStatsTo(e.target.value)} style={{ flex: 1, padding: "8px 10px", borderRadius: 9, border: "1px solid #e5e5ea", fontSize: 15, outline: "none" }} />
       </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>消費類別</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>消費類別</div>
       <div style={{ display: "flex", gap: 8, marginBottom: statsCategory ? 8 : 14 }}>
         <select value={statsCategory} onChange={e => { setStatsCategory(e.target.value); setStatsSubcategory(""); }} style={selStyle}>
           <option value="">全部類別</option>
@@ -784,7 +784,7 @@ function StatsView(props) {
           {categories[statsCategory].map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>}
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>付款方式</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>付款方式</div>
       <div style={{ display: "flex", gap: 8, marginBottom: statsPayment ? 8 : 14 }}>
         <select value={statsPayment} onChange={e => { setStatsPayment(e.target.value); setStatsSubpayment(""); }} style={selStyle}>
           <option value="">全部付款方式</option>
@@ -797,61 +797,61 @@ function StatsView(props) {
           {payments[statsPayment].map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>}
-      {projects.length > 0 && <><div style={{ fontSize: 13, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>專案</div>
+      {projects.length > 0 && <><div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>專案</div>
         <select value={statsProject} onChange={e => setStatsProject(e.target.value)} style={{ ...selStyle, marginBottom: 14 }}>
           <option value="">全部專案</option>
           <option value="__none__">未指定專案</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select></>}
-      <button onClick={() => { setStatsFrom(monthStart(now.getFullYear(), now.getMonth())); setStatsTo(todayStr()); setStatsCategory(""); setStatsSubcategory(""); setStatsPayment(""); setStatsSubpayment(""); setStatsProject(""); }} style={{ width: "100%", padding: "9px", background: "none", border: "1px solid #e5e5ea", borderRadius: 10, fontSize: 13, cursor: "pointer", color: "#8e8e93" }}>重置篩選</button>
+      <button onClick={() => { setStatsFrom(monthStart(now.getFullYear(), now.getMonth())); setStatsTo(todayStr()); setStatsCategory(""); setStatsSubcategory(""); setStatsPayment(""); setStatsSubpayment(""); setStatsProject(""); }} style={{ width: "100%", padding: "9px", background: "none", border: "1px solid #e5e5ea", borderRadius: 10, fontSize: 15, cursor: "pointer", color: "#8e8e93" }}>重置篩選</button>
     </div>}
 
     <div style={{ background: "linear-gradient(135deg,#1c1c1e,#2c2c2e)", color: "#fff", borderRadius: 14, padding: "16px", marginBottom: 14 }}>
-      <div style={{ fontSize: 12, opacity: 0.55, marginBottom: 4 }}>
+      <div style={{ fontSize: 14, opacity: 0.55, marginBottom: 4 }}>
         {statsFrom || "最早"} ～ {statsTo || "今天"}
         {statsCategory && ` · ${statsCategory}${statsSubcategory ? ` › ${statsSubcategory}` : ""}`}
         {statsPayment && ` · ${statsPayment}${statsSubpayment ? ` › ${statsSubpayment}` : ""}`}
         {statsProject && statsProject !== "__none__" && ` · 📁${projects.find(p => p.id === statsProject)?.name || ""}`}
         {statsProject === "__none__" && " · 未指定專案"}
       </div>
-      <CurrencyTotals totals={statsTotals} size={26} />
-      <div style={{ fontSize: 13, opacity: 0.6, marginTop: 4 }}>{statsFiltered.length} 筆消費</div>
+      <CurrencyTotals totals={statsTotals} size={28} />
+      <div style={{ fontSize: 15, opacity: 0.6, marginTop: 4 }}>{statsFiltered.length} 筆消費</div>
     </div>
 
     <Chart title="依類別" data={statsByCategory} totals={statsTotals} accent="#007aff" getLabelIcon={label => catIcons[label.split(" · ")[0].includes(" › ") ? label.split(" · ")[0].split(" › ")[0] : label.split(" · ")[0]] || "📌"} />
     <Chart title="依付款方式" data={statsByPayment} totals={statsTotals} accent="#5856d6" getLabelIcon={() => "💳"} />
 
     {statsFiltered.length > 0 && <div style={{ background: "#fff", borderRadius: 14, padding: "16px", boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
-      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>消費明細（{statsFiltered.length} 筆）</div>
+      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>消費明細（{statsFiltered.length} 筆）</div>
       {[...statsFiltered].sort((a, b) => a.datetime > b.datetime ? -1 : 1).map(e => (
         <div key={e.id} onClick={() => onEditExpense(e)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f5f5f7", cursor: "pointer" }}>
-          <div style={{ fontSize: 18 }}>{catIcons[e.category] || "📌"}</div>
+          <div style={{ fontSize: 20 }}>{catIcons[e.category] || "📌"}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.store}</div>
-            <div style={{ fontSize: 11, color: "#8e8e93" }}>{getExpDateStr(e)} · {e.category}{e.subcategory ? ` › ${e.subcategory}` : ""}</div>
-            <div style={{ fontSize: 11, color: "#8e8e93" }}>{e.payment}{e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? ` › ${e.subpayment}` : ""} · {currencyCodeOf(e)}{e.project ? ` · 📁${projects.find(p => p.id === e.project)?.name || ""}` : ""}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.store}</div>
+            <div style={{ fontSize: 13, color: "#8e8e93" }}>{getExpDateStr(e)} · {e.category}{e.subcategory ? ` › ${e.subcategory}` : ""}</div>
+            <div style={{ fontSize: 13, color: "#8e8e93" }}>{e.payment}{e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? ` › ${e.subpayment}` : ""} · {currencyCodeOf(e)}{e.project ? ` · 📁${projects.find(p => p.id === e.project)?.name || ""}` : ""}</div>
           </div>
           <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>{currencyCodeOf(e)} {fmt(e.amount)}</div>
-            {getExpenseTwdLabel(e) && <div style={{ fontSize: 11, color: "#007aff", fontWeight: 700, marginTop: 2 }}>{getExpenseTwdLabel(e)}</div>}
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{currencyCodeOf(e)} {fmt(e.amount)}</div>
+            {getExpenseTwdLabel(e) && <div style={{ fontSize: 13, color: "#007aff", fontWeight: 700, marginTop: 2 }}>{getExpenseTwdLabel(e)}</div>}
           </div>
         </div>
       ))}
     </div>}
-    {statsFiltered.length === 0 && <div style={{ textAlign: "center", color: "#aaa", padding: "40px 0", fontSize: 14 }}>此篩選條件無消費紀錄</div>}
+    {statsFiltered.length === 0 && <div style={{ textAlign: "center", color: "#aaa", padding: "40px 0", fontSize: 16 }}>此篩選條件無消費紀錄</div>}
   </div>;
 }
 
 function Chart({ title, data, totals, accent, getLabelIcon }) {
   if (Object.keys(data).length === 0) return null;
   return <div style={{ background: "#fff", borderRadius: 14, padding: "16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
-    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>{title}</div>
+    <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>{title}</div>
     {Object.entries(data).sort((a, b) => b[1] - a[1]).map(([label, amt]) => {
       const code = label.match(/[A-Z]{3}$/)?.[0] || "TWD";
       const pct = totals[code] ? Math.round(amt / totals[code] * 100) : 0;
       return (
         <div key={label} style={{ marginBottom: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, marginBottom: 4 }}>
             <span>{getLabelIcon(label)} {label}</span>
             <span style={{ fontWeight: 600 }}>{code} {fmt(amt)} <span style={{ color: "#8e8e93", fontWeight: 400 }}>({pct}%)</span></span>
           </div>
@@ -865,11 +865,11 @@ function Chart({ title, data, totals, accent, getLabelIcon }) {
 function TwoLevelSelect({ map, parentValue, childValue, onParentChange, onChildChange, parentPlaceholder, childPlaceholder }) {
   const children = parentValue ? (map[parentValue] || []) : [];
   return <>
-    <select value={parentValue} onChange={e => onParentChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 15, background: "#fff", boxSizing: "border-box", marginBottom: 8 }}>
+    <select value={parentValue} onChange={e => onParentChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box", marginBottom: 8 }}>
       <option value="">{parentPlaceholder}</option>
       {Object.keys(map).map(k => <option key={k} value={k}>{k}</option>)}
     </select>
-    {parentValue && children.length > 0 && <select value={childValue} onChange={e => onChildChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 15, background: "#fff", boxSizing: "border-box" }}>
+    {parentValue && children.length > 0 && <select value={childValue} onChange={e => onChildChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
       <option value="">{childPlaceholder}</option>
       {children.map(c => <option key={c} value={c}>{c}</option>)}
     </select>}
@@ -877,23 +877,23 @@ function TwoLevelSelect({ map, parentValue, childValue, onParentChange, onChildC
 }
 
 function Modal({ title, onClose, children }) {
-  return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 100, display: "flex", alignItems: "flex-end" }}><div style={{ background: "#f5f5f7", borderRadius: "20px 20px 0 0", width: "100%", maxHeight: "90vh", overflowY: "auto", padding: "20px 20px 40px" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 18, fontWeight: 700, color: "#1c1c1e" }}>{title}</div><button onClick={onClose} style={{ background: "#e5e5ea", border: "none", borderRadius: 20, width: 30, height: 30, fontSize: 16, cursor: "pointer", color: "#555" }}>✕</button></div>{children}</div></div>;
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 100, display: "flex", alignItems: "flex-end" }}><div style={{ background: "#f5f5f7", borderRadius: "20px 20px 0 0", width: "100%", maxHeight: "90vh", overflowY: "auto", padding: "20px 20px 40px" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 20, fontWeight: 700, color: "#1c1c1e" }}>{title}</div><button onClick={onClose} style={{ background: "#e5e5ea", border: "none", borderRadius: 20, width: 30, height: 30, fontSize: 18, cursor: "pointer", color: "#555" }}>✕</button></div>{children}</div></div>;
 }
 
 function Label({ children }) {
-  return <div style={{ fontSize: 13, fontWeight: 600, color: "#8e8e93", marginBottom: 4, marginTop: 14 }}>{children}</div>;
+  return <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 4, marginTop: 14 }}>{children}</div>;
 }
 
 function Input({ onChange, ...props }) {
-  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 15, background: "#fff", boxSizing: "border-box", outline: "none" }} />;
+  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box", outline: "none" }} />;
 }
 
 function Btn({ onClick, children }) {
-  return <button onClick={onClick} style={{ marginTop: 20, width: "100%", padding: "14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 600, cursor: "pointer" }}>{children}</button>;
+  return <button onClick={onClick} style={{ marginTop: 20, width: "100%", padding: "14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 12, fontSize: 18, fontWeight: 600, cursor: "pointer" }}>{children}</button>;
 }
 
 function CurrencySelect({ value, onChange }) {
-  return <select value={value} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 15, background: "#fff", boxSizing: "border-box" }}>
+  return <select value={value} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
     {CURRENCY_OPTIONS.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
   </select>;
 }
@@ -903,25 +903,25 @@ function ProjectForm({ project, setProject, onFetchRate, rateLoading }) {
     <Label>專案名稱</Label><Input placeholder="2026 東京旅遊" value={project.name} onChange={v => setProject({ ...project, name: v })} />
     <Label>說明（選填）</Label><Input placeholder="春季賞花之旅…" value={project.desc} onChange={v => setProject({ ...project, desc: v })} />
     <Label>主要統計幣別</Label>
-    <select value={project.currency} onChange={e => setProject({ ...project, currency: e.target.value, exchangeRate: e.target.value === "TWD" ? "1" : project.exchangeRate })} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 15, background: "#fff", boxSizing: "border-box" }}>
+    <select value={project.currency} onChange={e => setProject({ ...project, currency: e.target.value, exchangeRate: e.target.value === "TWD" ? "1" : project.exchangeRate })} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
       {CURRENCY_OPTIONS.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
     </select>
     <Label>{project.currency}/台幣TWD 匯率</Label>
     <div style={{ display: "flex", gap: 8 }}>
       <Input type="number" step="0.0001" placeholder="例如 0.22" value={project.exchangeRate} onChange={v => setProject({ ...project, exchangeRate: v })} />
-      {project.currency !== "TWD" && <button onClick={onFetchRate} disabled={rateLoading} style={{ flex: "0 0 96px", border: "none", borderRadius: 10, background: rateLoading ? "#c7c7cc" : "#34c759", color: "#fff", fontSize: 13, fontWeight: 600, cursor: rateLoading ? "default" : "pointer" }}>{rateLoading ? "取得中" : "抓臺銀"}</button>}
+      {project.currency !== "TWD" && <button onClick={onFetchRate} disabled={rateLoading} style={{ flex: "0 0 96px", border: "none", borderRadius: 10, background: rateLoading ? "#c7c7cc" : "#34c759", color: "#fff", fontSize: 15, fontWeight: 600, cursor: rateLoading ? "default" : "pointer" }}>{rateLoading ? "取得中" : "抓臺銀"}</button>}
     </div>
     <Label>預算（{project.currency}，選填）</Label><Input type="number" placeholder="50000" value={project.budget} onChange={v => setProject({ ...project, budget: v })} />
   </>;
 }
 
 function IconSelect({ value, onChange }) {
-  return <select value={value} onChange={e => onChange(e.target.value)} aria-label="類別圖示" style={{ width: 54, flex: "0 0 54px", padding: "10px 6px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 20, background: "#fff", outline: "none", textAlign: "center" }}>
+  return <select value={value} onChange={e => onChange(e.target.value)} aria-label="類別圖示" style={{ width: 54, flex: "0 0 54px", padding: "10px 6px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 22, background: "#fff", outline: "none", textAlign: "center" }}>
     {CATEGORY_ICON_OPTIONS.map(icon => <option key={icon} value={icon}>{icon}</option>)}
   </select>;
 }
 
-function CurrencyTotals({ totals, size = 16, color = "inherit", align = "left" }) {
+function CurrencyTotals({ totals, size = 18, color = "inherit", align = "left" }) {
   const entries = orderedCurrencyEntries(totals);
   if (entries.length === 0) entries.push(["TWD", 0]);
   return <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: align === "right" ? "flex-end" : "flex-start" }}>
@@ -930,5 +930,5 @@ function CurrencyTotals({ totals, size = 16, color = "inherit", align = "left" }
 }
 
 function StatBox({ label, value }) {
-  return <div style={{ flex: 1, background: "#f5f5f7", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}><div style={{ fontSize: 11, color: "#8e8e93" }}>{label}</div><div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>{value}</div></div>;
+  return <div style={{ flex: 1, background: "#f5f5f7", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}><div style={{ fontSize: 13, color: "#8e8e93" }}>{label}</div><div style={{ fontSize: 17, fontWeight: 700, marginTop: 4 }}>{value}</div></div>;
 }
