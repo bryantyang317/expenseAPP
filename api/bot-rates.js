@@ -16,7 +16,7 @@ const parseRates = csv => {
     if (!TARGET_CODES.has(code)) continue;
 
     // 臺銀 flcsv 欄位通常為：幣別、現金買入、現金賣出、即期買入、即期賣出...
-    const cashSell = parseNumber(cells[4]);
+    const cashSell = parseNumber(cells[12]);
     if (cashSell) rates[code] = cashSell;
   }
 
