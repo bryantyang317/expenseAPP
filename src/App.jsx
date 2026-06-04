@@ -55,6 +55,22 @@ const safeCell = value => {
     .replace(/"/g, "&quot;");
 };
 const filenameDate = value => value || "all";
+const cellText = cell => (cell?.textContent || "").trim().replace(/^'/, "");
+const parseMoney = value => {
+  const n = Number(String(value || "").replace(/,/g, "").trim());
+  return Number.isFinite(n) ? n : null;
+};
+const normalizeDateText = value => {
+  const text = String(value || "").trim().replace(/[./]/g, "-");
+  const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) return "";
+  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+};
+const normalizeTimeText = value => {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return "00:00";
+  return `${match[1].padStart(2, "0")}:${match[2]}`;
+};
 const normalizePayments = pm => ({ ...DEFAULT_PAYMENTS, ...(pm || {}), "現金": (pm?.["現金"] || []).filter(item => !CURRENCY_LABELS.has(item)) });
 const toDateStr = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const todayStr = () => toDateStr(new Date());
@@ -127,6 +143,7 @@ export default function App() {
   const [statsSubpayment, setStatsSubpayment] = useState("");
   const [statsProject, setStatsProject] = useState("");
   const [showStatsFilter, setShowStatsFilter] = useState(false);
+  const [importingExcel, setImportingExcel] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -498,7 +515,9 @@ export default function App() {
         <td class="num">${fmt(e.amount)}</td>
         <td>${safeCell(code)}</td>
         <td>${safeCell(e.category)}</td>
+        <td>${safeCell(e.subcategory || "")}</td>
         <td>${safeCell(e.payment)}</td>
+        <td>${safeCell(e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? e.subpayment : "")}</td>
         <td>${safeCell(project?.name || "")}</td>
         <td>${safeCell(e.note)}</td>
         <td class="num">${exchangeRate ? fmt(exchangeRate) : ""}</td>
@@ -515,9 +534,9 @@ export default function App() {
       .num{text-align:right;mso-number-format:"#,##0.00"}
     </style></head><body>
       <table>
-        <tr><td colspan="12">篩選日期區間：${safeCell(dateRange)}</td></tr>
-        <tr><th>序號</th><th>日期</th><th>時間</th><th>商店</th><th>金額</th><th>幣別</th><th>類別</th><th>付款方式</th><th>專案</th><th>備註</th><th>匯率</th><th>等值台幣</th></tr>
-        ${detailRows || `<tr><td colspan="12">此篩選條件無消費紀錄</td></tr>`}
+        <tr><td colspan="14">篩選日期區間：${safeCell(dateRange)}</td></tr>
+        <tr><th>序號</th><th>日期</th><th>時間</th><th>商店</th><th>金額</th><th>幣別</th><th>類別</th><th>子類別</th><th>付款方式</th><th>付款子項目</th><th>專案</th><th>備註</th><th>匯率</th><th>等值台幣</th></tr>
+        ${detailRows || `<tr><td colspan="14">此篩選條件無消費紀錄</td></tr>`}
       </table>
     </body></html>`;
     const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" });
@@ -529,6 +548,125 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+  const importStatsReport = async file => {
+    if (!file) return;
+    setImportingExcel(true);
+    try {
+      const html = await file.text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const rows = [...doc.querySelectorAll("tr")].map(row => [...row.cells].map(cellText));
+      const headerIndex = rows.findIndex(row => row.includes("日期") && row.includes("商店") && row.includes("金額"));
+      if (headerIndex === -1) {
+        showToast("找不到可匯入的消費明細，請選擇本 App 匯出的 .xls");
+        return;
+      }
+
+      const headers = rows[headerIndex];
+      const col = name => headers.indexOf(name);
+      const required = ["日期", "商店", "金額", "幣別", "類別", "付款方式"];
+      if (required.some(name => col(name) === -1)) {
+        showToast("Excel 欄位不完整，無法匯入");
+        return;
+      }
+
+      const projectByName = new Map(projects.map(p => [p.name, p]));
+      const importedProjects = [];
+      const nextCategories = { ...categories };
+      const nextCatIcons = { ...catIcons };
+      const nextPayments = { ...payments };
+      const nextCustomCurrencies = [...customCurrencies];
+      const nextCurrencyCodes = [...currencyOrderCodes];
+      const seenExpenseKeys = new Set(expenses.map(e => [
+        e.datetime || "",
+        e.store || "",
+        Number(e.amount || 0),
+        currencyCodeOf(e),
+        e.category || "",
+        e.subcategory || "",
+        e.payment || "",
+        e.subpayment || "",
+        e.project ? projects.find(p => p.id === e.project)?.name || "" : "",
+        e.note || ""
+      ].join("|")));
+
+      const importedExpenses = [];
+      for (const row of rows.slice(headerIndex + 1)) {
+        if (!row.length || row.every(value => !value) || row.join("").includes("此篩選條件無消費紀錄")) continue;
+        const date = normalizeDateText(row[col("日期")]);
+        const amount = parseMoney(row[col("金額")]);
+        const store = row[col("商店")] || "";
+        const currency = normalizeCurrencyCode((row[col("幣別")] || "TWD").toUpperCase());
+        const category = row[col("類別")] || "其他";
+        const subcategory = col("子類別") >= 0 ? row[col("子類別")] : "";
+        const payment = row[col("付款方式")] || "其他";
+        const subpayment = col("付款子項目") >= 0 ? row[col("付款子項目")] : "";
+        const projectName = col("專案") >= 0 ? row[col("專案")] : "";
+        const note = col("備註") >= 0 ? row[col("備註")] : "";
+        if (!date || amount === null || !store) continue;
+
+        if (!nextCategories[category]) {
+          nextCategories[category] = [];
+          nextCatIcons[category] = "📌";
+        }
+        if (subcategory && !nextCategories[category].includes(subcategory)) nextCategories[category] = [...nextCategories[category], subcategory];
+        if (!nextPayments[payment]) nextPayments[payment] = [];
+        if (subpayment && !nextPayments[payment].includes(subpayment)) nextPayments[payment] = [...nextPayments[payment], subpayment];
+        if (/^[A-Z]{3}$/.test(currency) && !BUILTIN_CURRENCY_CODES.has(currency) && !nextCustomCurrencies.some(c => c.code === currency)) {
+          nextCustomCurrencies.push({ label: currency, code: currency });
+          if (!nextCurrencyCodes.includes(currency)) nextCurrencyCodes.push(currency);
+        }
+
+        let projectId = "";
+        if (projectName) {
+          let project = projectByName.get(projectName);
+          if (!project) {
+            project = { id: `import_project_${Date.now()}_${importedProjects.length}`, name: projectName, desc: "由 Excel 匯入", budget: null, currency: "TWD", exchangeRate: 1, createdAt: new Date().toISOString() };
+            projectByName.set(projectName, project);
+            importedProjects.push(project);
+          }
+          projectId = project.id;
+        }
+
+        const datetime = `${date}T${normalizeTimeText(col("時間") >= 0 ? row[col("時間")] : "")}`;
+        const dedupeKey = [datetime, store, amount, currency, category, subcategory, payment, subpayment, projectName, note].join("|");
+        if (seenExpenseKeys.has(dedupeKey)) continue;
+        seenExpenseKeys.add(dedupeKey);
+        importedExpenses.push({
+          id: `import_expense_${Date.now()}_${importedExpenses.length}`,
+          amount,
+          store,
+          category,
+          subcategory,
+          payment,
+          subpayment,
+          currency,
+          note,
+          datetime,
+          project: projectId,
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      if (importedExpenses.length === 0) {
+        showToast("沒有新的消費紀錄可匯入");
+        return;
+      }
+
+      await saveProjects([...projects, ...importedProjects]);
+      await saveCategories(nextCategories);
+      await saveCatIcons(nextCatIcons);
+      await savePayments(normalizePayments(nextPayments));
+      await saveCustomCurrencies(nextCustomCurrencies);
+      await saveCurrencyOrder(nextCurrencyCodes);
+      await saveExpenses([...importedExpenses, ...expenses]);
+      showToast(`✅ 已匯入 ${importedExpenses.length} 筆消費`);
+    } catch (error) {
+      console.error(error);
+      showToast("匯入失敗，請確認是本 App 匯出的 .xls");
+    } finally {
+      setImportingExcel(false);
+    }
   };
 
   if (!ready) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontSize: 20, color: "#888" }}>載入中…</div>;
@@ -681,6 +819,8 @@ export default function App() {
           getExpDateStr={getExpDateStr}
           onEditExpense={openExpenseEditor}
           onExportStats={exportStatsReport}
+          onImportStats={importStatsReport}
+          importingExcel={importingExcel}
           getExpenseTwdLabel={expenseTwdLabel}
         />}
 
@@ -827,7 +967,7 @@ function StatsView(props) {
     statsPayment, statsProject, statsSubcategory, statsSubpayment, statsTo,
     statsTotals, setShowStatsFilter, setStatsCategory, setStatsFrom, setStatsPayment,
     setStatsProject, setStatsSubcategory, setStatsSubpayment, setStatsTo, getExpDateStr,
-    onEditExpense, onExportStats, getExpenseTwdLabel
+    onEditExpense, onExportStats, onImportStats, importingExcel, getExpenseTwdLabel
   } = props;
   const now = new Date();
 
@@ -835,6 +975,10 @@ function StatsView(props) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
       <div style={{ fontSize: 18, fontWeight: 600 }}>統計分析</div>
       <div style={{ display: "flex", gap: 6 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 5, background: importingExcel ? "#c7c7cc" : "#ff9500", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: importingExcel ? "default" : "pointer", fontWeight: 600 }}>
+          ⬆ 匯入
+          <input type="file" accept=".xls,.html,text/html,application/vnd.ms-excel" disabled={importingExcel} onChange={e => { onImportStats(e.target.files?.[0]); e.target.value = ""; }} style={{ display: "none" }} />
+        </label>
         <button onClick={onExportStats} style={{ display: "flex", alignItems: "center", gap: 5, background: "#34c759", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>⬇ Excel</button>
         <button onClick={() => setShowStatsFilter(!showStatsFilter)} style={{ display: "flex", alignItems: "center", gap: 5, background: activeFilterCount > 0 ? "#007aff" : "#e5e5ea", color: activeFilterCount > 0 ? "#fff" : "#555", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>
           ⚙ 篩選{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
