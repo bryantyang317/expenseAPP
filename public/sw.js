@@ -1,4 +1,4 @@
-const CACHE_NAME = "expense-pwa-v4";
+const CACHE_NAME = "expense-pwa-v5";
 const BASE_PATH = new URL("./", self.location).pathname;
 const APP_SHELL = [
   BASE_PATH,
