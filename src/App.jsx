@@ -1126,7 +1126,7 @@ function StatsView(props) {
           ⬆ 匯入
           <input type="file" accept=".xls,.html,text/html,application/vnd.ms-excel" disabled={importingExcel} onChange={e => { onImportStats(e.target.files?.[0]); e.target.value = ""; }} style={{ display: "none" }} />
         </label>
-        <button onClick={onExportStats} style={{ display: "flex", alignItems: "center", gap: 5, background: "#34c759", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>⬇ Excel</button>
+        <button onClick={onExportStats} style={{ display: "flex", alignItems: "center", gap: 5, background: "#34c759", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>⬇ 匯出</button>
         <button onClick={() => setShowStatsFilter(!showStatsFilter)} style={{ display: "flex", alignItems: "center", gap: 5, background: activeFilterCount > 0 ? "#007aff" : "#e5e5ea", color: activeFilterCount > 0 ? "#fff" : "#555", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>
           ⚙ 篩選{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
         </button>
