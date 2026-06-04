@@ -71,6 +71,27 @@ const normalizeTimeText = value => {
   if (!match) return "00:00";
   return `${match[1].padStart(2, "0")}:${match[2]}`;
 };
+const BACKUP_SECTIONS = new Set(["消費類別設定", "付款方式設定", "幣別設定", "專案設定", "消費明細"]);
+const makeTable = (title, headers, rows) => `<h2>${safeCell(title)}</h2><table>
+  <tr><td colspan="${headers.length}">${safeCell(title)}</td></tr>
+  <tr>${headers.map(header => `<th>${safeCell(header)}</th>`).join("")}</tr>
+  ${rows.length ? rows.map(row => `<tr>${row.map(cell => `<td>${safeCell(cell)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${headers.length}">無資料</td></tr>`}
+</table>`;
+const findHeaderIndex = (rows, sectionTitle, requiredHeaders) => {
+  const titleIndex = rows.findIndex(row => row.length === 1 && row[0] === sectionTitle);
+  const start = titleIndex === -1 ? 0 : titleIndex + 1;
+  return rows.findIndex((row, idx) => idx >= start && requiredHeaders.every(header => row.includes(header)));
+};
+const sectionDataRows = (rows, headerIndex) => {
+  if (headerIndex === -1) return [];
+  const data = [];
+  for (const row of rows.slice(headerIndex + 1)) {
+    if (row.length === 1 && BACKUP_SECTIONS.has(row[0])) break;
+    if (!row.length || row.every(value => !value) || row.join("") === "無資料") continue;
+    data.push(row);
+  }
+  return data;
+};
 const normalizePayments = pm => ({ ...DEFAULT_PAYMENTS, ...(pm || {}), "現金": (pm?.["現金"] || []).filter(item => !CURRENCY_LABELS.has(item)) });
 const toDateStr = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const todayStr = () => toDateStr(new Date());
@@ -502,28 +523,53 @@ export default function App() {
   const exportStatsReport = () => {
     const sorted = [...statsFiltered].sort((a, b) => (a.datetime || "") > (b.datetime || "") ? 1 : -1);
     const dateRange = `${statsFrom || "最早"} ～ ${statsTo || "今天"}`;
+    const categoryRows = Object.entries(categories).flatMap(([parent, children], parentIdx) => {
+      const rows = children.length ? children : [""];
+      return rows.map((child, childIdx) => [parent, child, catIcons[parent] || "📌", parentIdx + 1, child ? childIdx + 1 : ""]);
+    });
+    const paymentRows = Object.entries(payments).flatMap(([parent, children], parentIdx) => {
+      const rows = children.length ? children : [""];
+      return rows.map((child, childIdx) => [parent, child, parentIdx + 1, child ? childIdx + 1 : ""]);
+    });
+    const currencyRows = currencyOptions.map((currency, idx) => [
+      currency.label,
+      currency.code,
+      BUILTIN_CURRENCY_CODES.has(currency.code) ? "內建" : "自訂",
+      idx + 1
+    ]);
+    const projectRows = projects.map(project => [
+      project.id,
+      project.name,
+      project.desc || "",
+      project.budget ?? "",
+      normalizeCurrencyCode(project.currency || "TWD"),
+      project.exchangeRate || 1,
+      project.createdAt || "",
+      project.updatedAt || ""
+    ]);
     const detailRows = sorted.map((e, idx) => {
       const project = projects.find(p => p.id === e.project);
       const code = currencyCodeOf(e);
       const exchangeRate = code !== "TWD" && normalizeCurrencyCode(project?.currency) === code ? Number(project.exchangeRate || 0) : "";
       const twdValue = exchangeRate ? Number(e.amount || 0) * exchangeRate : "";
-      return `<tr>
-        <td class="num">${idx + 1}</td>
-        <td>${safeCell(getExpDateStr(e))}</td>
-        <td>${safeCell(e.datetime?.slice(11, 16) || "")}</td>
-        <td>${safeCell(e.store)}</td>
-        <td class="num">${fmt(e.amount)}</td>
-        <td>${safeCell(code)}</td>
-        <td>${safeCell(e.category)}</td>
-        <td>${safeCell(e.subcategory || "")}</td>
-        <td>${safeCell(e.payment)}</td>
-        <td>${safeCell(e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? e.subpayment : "")}</td>
-        <td>${safeCell(project?.name || "")}</td>
-        <td>${safeCell(e.note)}</td>
-        <td class="num">${exchangeRate ? fmt(exchangeRate) : ""}</td>
-        <td class="num">${twdValue ? fmt(twdValue) : ""}</td>
-      </tr>`;
-    }).join("");
+      return [
+        idx + 1,
+        getExpDateStr(e),
+        e.datetime?.slice(11, 16) || "",
+        e.store,
+        e.amount,
+        code,
+        e.category,
+        e.subcategory || "",
+        e.payment,
+        e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? e.subpayment : "",
+        project?.name || "",
+        e.project || "",
+        e.note,
+        exchangeRate || "",
+        twdValue || ""
+      ];
+    });
     const html = `<!doctype html><html><head><meta charset="UTF-8"><style>
       body{font-family:Arial,"Microsoft JhengHei",sans-serif}
       h1{font-size:20px}
@@ -533,11 +579,17 @@ export default function App() {
       th{background:#eef5ff;font-weight:700}
       .num{text-align:right;mso-number-format:"#,##0.00"}
     </style></head><body>
+      <h1>記帳 App 完整備份</h1>
       <table>
-        <tr><td colspan="14">篩選日期區間：${safeCell(dateRange)}</td></tr>
-        <tr><th>序號</th><th>日期</th><th>時間</th><th>商店</th><th>金額</th><th>幣別</th><th>類別</th><th>子類別</th><th>付款方式</th><th>付款子項目</th><th>專案</th><th>備註</th><th>匯率</th><th>等值台幣</th></tr>
-        ${detailRows || `<tr><td colspan="14">此篩選條件無消費紀錄</td></tr>`}
+        <tr><td>備份版本</td><td>2</td></tr>
+        <tr><td>匯出時間</td><td>${safeCell(new Date().toISOString())}</td></tr>
+        <tr><td>消費明細日期區間</td><td>${safeCell(dateRange)}</td></tr>
       </table>
+      ${makeTable("消費類別設定", ["類別", "子類別", "圖示", "類別排序", "子類別排序"], categoryRows)}
+      ${makeTable("付款方式設定", ["付款方式", "付款子項目", "付款方式排序", "子項目排序"], paymentRows)}
+      ${makeTable("幣別設定", ["幣別名稱", "幣別代碼", "類型", "排序"], currencyRows)}
+      ${makeTable("專案設定", ["專案ID", "專案名稱", "說明", "預算", "主要幣別", "匯率", "建立時間", "更新時間"], projectRows)}
+      ${makeTable("消費明細", ["序號", "日期", "時間", "商店", "金額", "幣別", "類別", "子類別", "付款方式", "付款子項目", "專案", "專案ID", "備註", "匯率", "等值台幣"], detailRows)}
     </body></html>`;
     const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -556,7 +608,7 @@ export default function App() {
       const html = await file.text();
       const doc = new DOMParser().parseFromString(html, "text/html");
       const rows = [...doc.querySelectorAll("tr")].map(row => [...row.cells].map(cellText));
-      const headerIndex = rows.findIndex(row => row.includes("日期") && row.includes("商店") && row.includes("金額"));
+      const headerIndex = findHeaderIndex(rows, "消費明細", ["日期", "商店", "金額"]);
       if (headerIndex === -1) {
         showToast("找不到可匯入的消費明細，請選擇本 App 匯出的 .xls");
         return;
@@ -570,13 +622,110 @@ export default function App() {
         return;
       }
 
-      const projectByName = new Map(projects.map(p => [p.name, p]));
-      const importedProjects = [];
-      const nextCategories = { ...categories };
-      const nextCatIcons = { ...catIcons };
-      const nextPayments = { ...payments };
-      const nextCustomCurrencies = [...customCurrencies];
-      const nextCurrencyCodes = [...currencyOrderCodes];
+      const categoryHeaderIndex = findHeaderIndex(rows, "消費類別設定", ["類別", "子類別"]);
+      const paymentHeaderIndex = findHeaderIndex(rows, "付款方式設定", ["付款方式", "付款子項目"]);
+      const currencyHeaderIndex = findHeaderIndex(rows, "幣別設定", ["幣別名稱", "幣別代碼"]);
+      const projectHeaderIndex = findHeaderIndex(rows, "專案設定", ["專案名稱"]);
+
+      let nextCategories = { ...categories };
+      let nextCatIcons = { ...catIcons };
+      if (categoryHeaderIndex !== -1) {
+        const categoryHeaders = rows[categoryHeaderIndex];
+        const ccol = name => categoryHeaders.indexOf(name);
+        const importedCategoryRows = sectionDataRows(rows, categoryHeaderIndex).sort((a, b) => {
+          const ap = Number(a[ccol("類別排序")] || 0);
+          const bp = Number(b[ccol("類別排序")] || 0);
+          const ac = Number(a[ccol("子類別排序")] || 0);
+          const bc = Number(b[ccol("子類別排序")] || 0);
+          return ap - bp || ac - bc;
+        });
+        nextCategories = {};
+        nextCatIcons = {};
+        importedCategoryRows.forEach(row => {
+          const parent = row[ccol("類別")];
+          const child = row[ccol("子類別")];
+          if (!parent) return;
+          if (!nextCategories[parent]) nextCategories[parent] = [];
+          if (child && !nextCategories[parent].includes(child)) nextCategories[parent].push(child);
+          nextCatIcons[parent] = row[ccol("圖示")] || nextCatIcons[parent] || "📌";
+        });
+      }
+
+      let nextPayments = { ...payments };
+      if (paymentHeaderIndex !== -1) {
+        const paymentHeaders = rows[paymentHeaderIndex];
+        const pcol = name => paymentHeaders.indexOf(name);
+        const importedPaymentRows = sectionDataRows(rows, paymentHeaderIndex).sort((a, b) => {
+          const ap = Number(a[pcol("付款方式排序")] || 0);
+          const bp = Number(b[pcol("付款方式排序")] || 0);
+          const ac = Number(a[pcol("子項目排序")] || 0);
+          const bc = Number(b[pcol("子項目排序")] || 0);
+          return ap - bp || ac - bc;
+        });
+        nextPayments = {};
+        importedPaymentRows.forEach(row => {
+          const parent = row[pcol("付款方式")];
+          const child = row[pcol("付款子項目")];
+          if (!parent) return;
+          if (!nextPayments[parent]) nextPayments[parent] = [];
+          if (child && !nextPayments[parent].includes(child)) nextPayments[parent].push(child);
+        });
+      }
+
+      let nextCustomCurrencies = [...customCurrencies];
+      let nextCurrencyCodes = [...currencyOrderCodes];
+      if (currencyHeaderIndex !== -1) {
+        const currencyHeaders = rows[currencyHeaderIndex];
+        const curCol = name => currencyHeaders.indexOf(name);
+        const importedCurrencyRows = sectionDataRows(rows, currencyHeaderIndex).sort((a, b) => Number(a[curCol("排序")] || 0) - Number(b[curCol("排序")] || 0));
+        nextCustomCurrencies = [];
+        nextCurrencyCodes = [];
+        importedCurrencyRows.forEach(row => {
+          const code = normalizeCurrencyCode((row[curCol("幣別代碼")] || "").toUpperCase());
+          const label = row[curCol("幣別名稱")] || code;
+          if (!/^[A-Z]{3}$/.test(code)) return;
+          if (!nextCurrencyCodes.includes(code)) nextCurrencyCodes.push(code);
+          if (!BUILTIN_CURRENCY_CODES.has(code) && !nextCustomCurrencies.some(c => c.code === code)) nextCustomCurrencies.push({ label, code });
+        });
+      }
+
+      const nextProjects = [...projects];
+      const projectById = new Map(nextProjects.map(p => [p.id, p]));
+      const projectByName = new Map(nextProjects.map(p => [p.name, p]));
+      const projectIdMap = new Map();
+      if (projectHeaderIndex !== -1) {
+        const projectHeaders = rows[projectHeaderIndex];
+        const projCol = name => projectHeaders.indexOf(name);
+        sectionDataRows(rows, projectHeaderIndex).forEach((row, idx) => {
+          const oldId = projCol("專案ID") >= 0 ? row[projCol("專案ID")] : "";
+          const name = row[projCol("專案名稱")];
+          if (!name) return;
+          const imported = {
+            id: oldId || `import_project_${Date.now()}_${idx}`,
+            name,
+            desc: projCol("說明") >= 0 ? row[projCol("說明")] : "",
+            budget: projCol("預算") >= 0 && row[projCol("預算")] ? parseMoney(row[projCol("預算")]) : null,
+            currency: normalizeCurrencyCode((projCol("主要幣別") >= 0 ? row[projCol("主要幣別")] : "TWD") || "TWD"),
+            exchangeRate: projCol("匯率") >= 0 && parseMoney(row[projCol("匯率")]) ? parseMoney(row[projCol("匯率")]) : 1,
+            createdAt: projCol("建立時間") >= 0 ? row[projCol("建立時間")] : new Date().toISOString(),
+            updatedAt: projCol("更新時間") >= 0 ? row[projCol("更新時間")] : ""
+          };
+          const existing = (oldId && projectById.get(oldId)) || projectByName.get(name);
+          if (existing) {
+            Object.assign(existing, imported, { id: existing.id });
+            if (oldId) projectIdMap.set(oldId, existing.id);
+            projectByName.set(existing.name, existing);
+          } else {
+            const uniqueId = projectById.has(imported.id) ? `import_project_${Date.now()}_${idx}` : imported.id;
+            const project = { ...imported, id: uniqueId };
+            nextProjects.push(project);
+            projectById.set(project.id, project);
+            projectByName.set(project.name, project);
+            if (oldId) projectIdMap.set(oldId, project.id);
+          }
+        });
+      }
+
       const seenExpenseKeys = new Set(expenses.map(e => [
         e.datetime || "",
         e.store || "",
@@ -591,7 +740,7 @@ export default function App() {
       ].join("|")));
 
       const importedExpenses = [];
-      for (const row of rows.slice(headerIndex + 1)) {
+      for (const row of sectionDataRows(rows, headerIndex)) {
         if (!row.length || row.every(value => !value) || row.join("").includes("此篩選條件無消費紀錄")) continue;
         const date = normalizeDateText(row[col("日期")]);
         const amount = parseMoney(row[col("金額")]);
@@ -602,6 +751,7 @@ export default function App() {
         const payment = row[col("付款方式")] || "其他";
         const subpayment = col("付款子項目") >= 0 ? row[col("付款子項目")] : "";
         const projectName = col("專案") >= 0 ? row[col("專案")] : "";
+        const oldProjectId = col("專案ID") >= 0 ? row[col("專案ID")] : "";
         const note = col("備註") >= 0 ? row[col("備註")] : "";
         if (!date || amount === null || !store) continue;
 
@@ -618,12 +768,14 @@ export default function App() {
         }
 
         let projectId = "";
-        if (projectName) {
-          let project = projectByName.get(projectName);
+        if (oldProjectId || projectName) {
+          let project = (oldProjectId && projectById.get(projectIdMap.get(oldProjectId) || oldProjectId)) || projectByName.get(projectName);
           if (!project) {
-            project = { id: `import_project_${Date.now()}_${importedProjects.length}`, name: projectName, desc: "由 Excel 匯入", budget: null, currency: "TWD", exchangeRate: 1, createdAt: new Date().toISOString() };
+            project = { id: `import_project_${Date.now()}_${nextProjects.length}`, name: projectName || "匯入專案", desc: "由 Excel 匯入", budget: null, currency: "TWD", exchangeRate: 1, createdAt: new Date().toISOString() };
             projectByName.set(projectName, project);
-            importedProjects.push(project);
+            projectById.set(project.id, project);
+            nextProjects.push(project);
+            if (oldProjectId) projectIdMap.set(oldProjectId, project.id);
           }
           projectId = project.id;
         }
@@ -648,19 +800,14 @@ export default function App() {
         });
       }
 
-      if (importedExpenses.length === 0) {
-        showToast("沒有新的消費紀錄可匯入");
-        return;
-      }
-
-      await saveProjects([...projects, ...importedProjects]);
+      await saveProjects(nextProjects);
       await saveCategories(nextCategories);
       await saveCatIcons(nextCatIcons);
       await savePayments(normalizePayments(nextPayments));
       await saveCustomCurrencies(nextCustomCurrencies);
       await saveCurrencyOrder(nextCurrencyCodes);
-      await saveExpenses([...importedExpenses, ...expenses]);
-      showToast(`✅ 已匯入 ${importedExpenses.length} 筆消費`);
+      if (importedExpenses.length > 0) await saveExpenses([...importedExpenses, ...expenses]);
+      showToast(`✅ 已匯入 ${importedExpenses.length} 筆消費，設定與專案已同步`);
     } catch (error) {
       console.error(error);
       showToast("匯入失敗，請確認是本 App 匯出的 .xls");
