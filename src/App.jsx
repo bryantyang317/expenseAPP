@@ -54,7 +54,138 @@ const safeCell = value => {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 };
+const safeFilenamePart = value => String(value || "").trim().replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, "");
 const filenameDate = value => value || "all";
+const excelCol = index => {
+  let col = "";
+  while (index > 0) {
+    const rem = (index - 1) % 26;
+    col = String.fromCharCode(65 + rem) + col;
+    index = Math.floor((index - 1) / 26);
+  }
+  return col;
+};
+const xlsxCell = (cell, rowIndex, colIndex) => {
+  const ref = `${excelCol(colIndex)}${rowIndex}`;
+  const value = cell?.value ?? "";
+  if (cell?.type === "number") {
+    const num = Number(value);
+    return Number.isFinite(num) ? `<c r="${ref}"><v>${num}</v></c>` : `<c r="${ref}"/>`;
+  }
+  return `<c r="${ref}" t="inlineStr"><is><t>${safeCell(value)}</t></is></c>`;
+};
+const worksheetXml = rows => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <cols>
+    <col min="1" max="1" width="8" customWidth="1"/>
+    <col min="2" max="3" width="13" customWidth="1"/>
+    <col min="4" max="4" width="22" customWidth="1"/>
+    <col min="5" max="5" width="14" customWidth="1"/>
+    <col min="6" max="8" width="14" customWidth="1"/>
+    <col min="9" max="9" width="18" customWidth="1"/>
+    <col min="10" max="10" width="24" customWidth="1"/>
+    <col min="11" max="12" width="14" customWidth="1"/>
+  </cols>
+  <sheetData>
+    ${rows.map((row, rowIdx) => {
+      const rowNumber = rowIdx + 1;
+      return `<row r="${rowNumber}">${row.map((cell, colIdx) => xlsxCell(cell, rowNumber, colIdx + 1)).join("")}</row>`;
+    }).join("")}
+  </sheetData>
+</worksheet>`;
+const crc32 = bytes => {
+  let crc = -1;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ -1) >>> 0;
+};
+const u16 = value => {
+  const bytes = new Uint8Array(2);
+  new DataView(bytes.buffer).setUint16(0, value, true);
+  return bytes;
+};
+const u32 = value => {
+  const bytes = new Uint8Array(4);
+  new DataView(bytes.buffer).setUint32(0, value, true);
+  return bytes;
+};
+const concatBytes = chunks => {
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const output = new Uint8Array(total);
+  let offset = 0;
+  chunks.forEach(chunk => {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  });
+  return output;
+};
+const textBytes = text => new TextEncoder().encode(text);
+const zipStore = files => {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  files.forEach(file => {
+    const name = textBytes(file.name);
+    const data = textBytes(file.content);
+    const crc = crc32(data);
+    const localHeader = concatBytes([
+      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc),
+      u32(data.length), u32(data.length), u16(name.length), u16(0), name
+    ]);
+    localParts.push(localHeader, data);
+    centralParts.push(concatBytes([
+      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc),
+      u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0),
+      u16(0), u32(0), u32(offset), name
+    ]));
+    offset += localHeader.length + data.length;
+  });
+  const central = concatBytes(centralParts);
+  const end = concatBytes([
+    u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+    u32(central.length), u32(offset), u16(0)
+  ]);
+  return concatBytes([...localParts, central, end]);
+};
+const buildXlsxBlob = rows => {
+  const files = [
+    {
+      name: "[Content_Types].xml",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>`
+    },
+    {
+      name: "_rels/.rels",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`
+    },
+    {
+      name: "xl/workbook.xml",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="消費明細" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`
+    },
+    {
+      name: "xl/_rels/workbook.xml.rels",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>`
+    },
+    { name: "xl/worksheets/sheet1.xml", content: worksheetXml(rows) }
+  ];
+  return new Blob([zipStore(files)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+};
 const cellText = cell => (cell?.textContent || "").trim().replace(/^'/, "");
 const parseMoney = value => {
   const n = Number(String(value || "").replace(/,/g, "").trim());
@@ -523,79 +654,37 @@ export default function App() {
   const exportStatsReport = () => {
     const sorted = [...statsFiltered].sort((a, b) => (a.datetime || "") > (b.datetime || "") ? 1 : -1);
     const dateRange = `${statsFrom || "最早"} ～ ${statsTo || "今天"}`;
-    const categoryRows = Object.entries(categories).flatMap(([parent, children], parentIdx) => {
-      const rows = children.length ? children : [""];
-      return rows.map((child, childIdx) => [parent, child, catIcons[parent] || "📌", parentIdx + 1, child ? childIdx + 1 : ""]);
-    });
-    const paymentRows = Object.entries(payments).flatMap(([parent, children], parentIdx) => {
-      const rows = children.length ? children : [""];
-      return rows.map((child, childIdx) => [parent, child, parentIdx + 1, child ? childIdx + 1 : ""]);
-    });
-    const currencyRows = currencyOptions.map((currency, idx) => [
-      currency.label,
-      currency.code,
-      BUILTIN_CURRENCY_CODES.has(currency.code) ? "內建" : "自訂",
-      idx + 1
-    ]);
-    const projectRows = projects.map(project => [
-      project.id,
-      project.name,
-      project.desc || "",
-      project.budget ?? "",
-      normalizeCurrencyCode(project.currency || "TWD"),
-      project.exchangeRate || 1,
-      project.createdAt || "",
-      project.updatedAt || ""
-    ]);
-    const detailRows = sorted.map((e, idx) => {
+    const rows = [
+      [{ value: `篩選日期區間：${dateRange}` }],
+      ["序號", "日期", "時間", "商店", "金額", "幣別", "類別", "付款方式", "專案", "備註", "匯率", "等值台幣"].map(value => ({ value }))
+    ];
+    sorted.forEach((e, idx) => {
       const project = projects.find(p => p.id === e.project);
       const code = currencyCodeOf(e);
       const exchangeRate = code !== "TWD" && normalizeCurrencyCode(project?.currency) === code ? Number(project.exchangeRate || 0) : "";
       const twdValue = exchangeRate ? Number(e.amount || 0) * exchangeRate : "";
-      return [
-        idx + 1,
-        getExpDateStr(e),
-        e.datetime?.slice(11, 16) || "",
-        e.store,
-        e.amount,
-        code,
-        e.category,
-        e.subcategory || "",
-        e.payment,
-        e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? e.subpayment : "",
-        project?.name || "",
-        e.project || "",
-        e.note,
-        exchangeRate || "",
-        twdValue || ""
-      ];
+      rows.push([
+        { value: idx + 1, type: "number" },
+        { value: getExpDateStr(e) },
+        { value: e.datetime?.slice(11, 16) || "" },
+        { value: e.store },
+        { value: e.amount, type: "number" },
+        { value: code },
+        { value: e.category },
+        { value: e.payment },
+        { value: project?.name || "" },
+        { value: e.note },
+        { value: exchangeRate || "", type: "number" },
+        { value: twdValue || "", type: "number" }
+      ]);
     });
-    const html = `<!doctype html><html><head><meta charset="UTF-8"><style>
-      body{font-family:Arial,"Microsoft JhengHei",sans-serif}
-      h1{font-size:20px}
-      h2{font-size:15px;margin-top:18px}
-      table{border-collapse:collapse;margin-bottom:14px}
-      th,td{border:1px solid #d9d9d9;padding:6px 8px;font-size:12px;mso-number-format:"\\@"}
-      th{background:#eef5ff;font-weight:700}
-      .num{text-align:right;mso-number-format:"#,##0.00"}
-    </style></head><body>
-      <h1>記帳 App 完整備份</h1>
-      <table>
-        <tr><td>備份版本</td><td>2</td></tr>
-        <tr><td>匯出時間</td><td>${safeCell(new Date().toISOString())}</td></tr>
-        <tr><td>消費明細日期區間</td><td>${safeCell(dateRange)}</td></tr>
-      </table>
-      ${makeTable("消費類別設定", ["類別", "子類別", "圖示", "類別排序", "子類別排序"], categoryRows)}
-      ${makeTable("付款方式設定", ["付款方式", "付款子項目", "付款方式排序", "子項目排序"], paymentRows)}
-      ${makeTable("幣別設定", ["幣別名稱", "幣別代碼", "類型", "排序"], currencyRows)}
-      ${makeTable("專案設定", ["專案ID", "專案名稱", "說明", "預算", "主要幣別", "匯率", "建立時間", "更新時間"], projectRows)}
-      ${makeTable("消費明細", ["序號", "日期", "時間", "商店", "金額", "幣別", "類別", "子類別", "付款方式", "付款子項目", "專案", "專案ID", "備註", "匯率", "等值台幣"], detailRows)}
-    </body></html>`;
-    const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const projectName = statsProject === "__none__" ? "未指定專案" : projects.find(p => p.id === statsProject)?.name;
+    const filterParts = [statsCategory, statsPayment, statsProject ? projectName : ""].filter(Boolean).map(safeFilenamePart);
+    const blob = buildXlsxBlob(rows);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `消費統計報表_${filenameDate(statsFrom)}_${filenameDate(statsTo)}.xls`;
+    link.download = [`消費統計報表`, filenameDate(statsFrom), filenameDate(statsTo), ...filterParts].join("_") + ".xlsx";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
