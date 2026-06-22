@@ -149,7 +149,10 @@ const zipStore = files => {
   ]);
   return concatBytes([...localParts, central, end]);
 };
-const buildXlsxBlob = rows => {
+const buildXlsxBlob = sheets => {
+  const sheetOverrides = sheets.map((_, idx) => `  <Override PartName="/xl/worksheets/sheet${idx + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("\n");
+  const workbookSheets = sheets.map((sheet, idx) => `    <sheet name="${safeCell(sheet.name)}" sheetId="${idx + 1}" r:id="rId${idx + 1}"/>`).join("\n");
+  const workbookRels = sheets.map((_, idx) => `  <Relationship Id="rId${idx + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${idx + 1}.xml"/>`).join("\n");
   const files = [
     {
       name: "[Content_Types].xml",
@@ -158,7 +161,7 @@ const buildXlsxBlob = rows => {
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+${sheetOverrides}
 </Types>`
     },
     {
@@ -172,19 +175,95 @@ const buildXlsxBlob = rows => {
       name: "xl/workbook.xml",
       content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="消費明細" sheetId="1" r:id="rId1"/></sheets>
+  <sheets>
+${workbookSheets}
+  </sheets>
 </workbook>`
     },
     {
       name: "xl/_rels/workbook.xml.rels",
       content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+${workbookRels}
 </Relationships>`
     },
-    { name: "xl/worksheets/sheet1.xml", content: worksheetXml(rows) }
+    ...sheets.map((sheet, idx) => ({ name: `xl/worksheets/sheet${idx + 1}.xml`, content: worksheetXml(sheet.rows) }))
   ];
   return new Blob([zipStore(files)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+};
+const unzipEntries = async buffer => {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  const entries = new Map();
+  let offset = 0;
+  while (offset + 30 <= bytes.length && view.getUint32(offset, true) === 0x04034b50) {
+    const method = view.getUint16(offset + 8, true);
+    const compressedSize = view.getUint32(offset + 18, true);
+    const nameLength = view.getUint16(offset + 26, true);
+    const extraLength = view.getUint16(offset + 28, true);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    const name = new TextDecoder().decode(bytes.slice(nameStart, nameStart + nameLength));
+    const compressed = bytes.slice(dataStart, dataStart + compressedSize);
+    let data;
+    if (method === 0) {
+      data = compressed;
+    } else if (method === 8 && typeof DecompressionStream !== "undefined") {
+      const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      data = new Uint8Array(await new Response(stream).arrayBuffer());
+    } else {
+      throw new Error("不支援此 Excel 壓縮格式");
+    }
+    entries.set(name, data);
+    offset = dataStart + compressedSize;
+  }
+  return entries;
+};
+const colIndexFromRef = ref => {
+  const letters = String(ref || "").match(/^[A-Z]+/)?.[0] || "A";
+  return [...letters].reduce((index, letter) => index * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+};
+const parseWorksheetRows = (xml, sharedStrings = []) => {
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  return [...doc.getElementsByTagName("row")].map(row => {
+    const values = [];
+    [...row.getElementsByTagName("c")].forEach(cell => {
+      const index = colIndexFromRef(cell.getAttribute("r"));
+      const type = cell.getAttribute("t");
+      const raw = cell.getElementsByTagName("v")[0]?.textContent || "";
+      let value = raw;
+      if (type === "inlineStr") value = [...cell.getElementsByTagName("t")].map(node => node.textContent || "").join("");
+      if (type === "s") value = sharedStrings[Number(raw)] || "";
+      values[index] = String(value).replace(/^'/, "");
+    });
+    return Array.from({ length: values.length }, (_, idx) => values[idx] || "");
+  });
+};
+const parseXlsxSheets = async file => {
+  const entries = await unzipEntries(await file.arrayBuffer());
+  const decode = name => {
+    const data = entries.get(name);
+    return data ? new TextDecoder().decode(data) : "";
+  };
+  const workbookXml = decode("xl/workbook.xml");
+  const relsXml = decode("xl/_rels/workbook.xml.rels");
+  if (!workbookXml || !relsXml) throw new Error("找不到 Excel 活頁簿資料");
+
+  const sharedDoc = new DOMParser().parseFromString(decode("xl/sharedStrings.xml"), "application/xml");
+  const sharedStrings = [...sharedDoc.getElementsByTagName("si")].map(item => [...item.getElementsByTagName("t")].map(node => node.textContent || "").join(""));
+  const relsDoc = new DOMParser().parseFromString(relsXml, "application/xml");
+  const relTargets = new Map([...relsDoc.getElementsByTagName("Relationship")].map(rel => [rel.getAttribute("Id"), rel.getAttribute("Target")]));
+  const workbookDoc = new DOMParser().parseFromString(workbookXml, "application/xml");
+  const sheets = {};
+  [...workbookDoc.getElementsByTagName("sheet")].forEach(sheet => {
+    const name = sheet.getAttribute("name");
+    const target = relTargets.get(sheet.getAttribute("r:id"));
+    if (!name || !target) return;
+    const path = target.startsWith("/") ? target.slice(1) : `xl/${target.replace(/^\.\//, "")}`;
+    const xml = decode(path);
+    if (xml) sheets[name] = parseWorksheetRows(xml, sharedStrings);
+  });
+  return sheets;
 };
 const cellText = cell => (cell?.textContent || "").trim().replace(/^'/, "");
 const parseMoney = value => {
@@ -654,16 +733,16 @@ export default function App() {
   const exportStatsReport = () => {
     const sorted = [...statsFiltered].sort((a, b) => (a.datetime || "") > (b.datetime || "") ? 1 : -1);
     const dateRange = `${statsFrom || "最早"} ～ ${statsTo || "今天"}`;
-    const rows = [
+    const detailRows = [
       [{ value: `篩選日期區間：${dateRange}` }],
-      ["序號", "日期", "時間", "商店", "金額", "幣別", "類別", "付款方式", "專案", "備註", "匯率", "等值台幣"].map(value => ({ value }))
+      ["序號", "日期", "時間", "商店", "金額", "幣別", "類別", "付款方式", "專案", "備註", "匯率", "等值台幣", "子類別", "付款子項目", "專案ID"].map(value => ({ value }))
     ];
     sorted.forEach((e, idx) => {
       const project = projects.find(p => p.id === e.project);
       const code = currencyCodeOf(e);
       const exchangeRate = code !== "TWD" && normalizeCurrencyCode(project?.currency) === code ? Number(project.exchangeRate || 0) : "";
       const twdValue = exchangeRate ? Number(e.amount || 0) * exchangeRate : "";
-      rows.push([
+      detailRows.push([
         { value: idx + 1, type: "number" },
         { value: getExpDateStr(e) },
         { value: e.datetime?.slice(11, 16) || "" },
@@ -675,12 +754,49 @@ export default function App() {
         { value: project?.name || "" },
         { value: e.note },
         { value: exchangeRate || "", type: "number" },
-        { value: twdValue || "", type: "number" }
+        { value: twdValue || "", type: "number" },
+        { value: e.subcategory || "" },
+        { value: e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? e.subpayment : "" },
+        { value: e.project || "" }
       ]);
     });
+    const categoryRows = [["類別", "子類別", "圖示", "類別排序", "子類別排序"].map(value => ({ value }))];
+    Object.entries(categories).forEach(([parent, children], parentIdx) => {
+      (children.length ? children : [""]).forEach((child, childIdx) => categoryRows.push([
+        { value: parent }, { value: child }, { value: catIcons[parent] || "📌" },
+        { value: parentIdx + 1, type: "number" }, { value: child ? childIdx + 1 : "", type: "number" }
+      ]));
+    });
+    const paymentRows = [["付款方式", "付款子項目", "付款方式排序", "子項目排序"].map(value => ({ value }))];
+    Object.entries(payments).forEach(([parent, children], parentIdx) => {
+      (children.length ? children : [""]).forEach((child, childIdx) => paymentRows.push([
+        { value: parent }, { value: child }, { value: parentIdx + 1, type: "number" },
+        { value: child ? childIdx + 1 : "", type: "number" }
+      ]));
+    });
+    const currencyRows = [["幣別名稱", "幣別代碼", "類型", "排序"].map(value => ({ value }))];
+    currencyOptions.forEach((currency, idx) => currencyRows.push([
+      { value: currency.label }, { value: currency.code },
+      { value: BUILTIN_CURRENCY_CODES.has(currency.code) ? "內建" : "自訂" },
+      { value: idx + 1, type: "number" }
+    ]));
+    const projectRows = [["專案ID", "專案名稱", "說明", "預算", "主要幣別", "匯率", "建立時間", "更新時間"].map(value => ({ value }))];
+    projects.forEach(project => projectRows.push([
+      { value: project.id }, { value: project.name }, { value: project.desc || "" },
+      { value: project.budget ?? "", type: "number" },
+      { value: normalizeCurrencyCode(project.currency || "TWD") },
+      { value: project.exchangeRate || 1, type: "number" },
+      { value: project.createdAt || "" }, { value: project.updatedAt || "" }
+    ]));
     const projectName = statsProject === "__none__" ? "未指定專案" : projects.find(p => p.id === statsProject)?.name;
     const filterParts = [statsCategory, statsPayment, statsProject ? projectName : ""].filter(Boolean).map(safeFilenamePart);
-    const blob = buildXlsxBlob(rows);
+    const blob = buildXlsxBlob([
+      { name: "消費明細", rows: detailRows },
+      { name: "消費類別設定", rows: categoryRows },
+      { name: "付款方式設定", rows: paymentRows },
+      { name: "幣別設定", rows: currencyRows },
+      { name: "專案設定", rows: projectRows }
+    ]);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -694,16 +810,30 @@ export default function App() {
     if (!file) return;
     setImportingExcel(true);
     try {
-      const html = await file.text();
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const rows = [...doc.querySelectorAll("tr")].map(row => [...row.cells].map(cellText));
-      const headerIndex = findHeaderIndex(rows, "消費明細", ["日期", "商店", "金額"]);
+      const isXlsx = file.name.toLowerCase().endsWith(".xlsx") || file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      let workbookSheets = null;
+      let rows;
+      if (isXlsx) {
+        workbookSheets = await parseXlsxSheets(file);
+        rows = workbookSheets["消費明細"] || [];
+      } else {
+        const html = await file.text();
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        rows = [...doc.querySelectorAll("tr")].map(row => [...row.cells].map(cellText));
+      }
+      const sourceFor = sectionName => workbookSheets?.[sectionName] || rows;
+      const headerFor = (sectionName, requiredHeaders) => {
+        const source = sourceFor(sectionName);
+        return { source, index: findHeaderIndex(source, workbookSheets ? "" : sectionName, requiredHeaders) };
+      };
+      const detailSection = headerFor("消費明細", ["日期", "商店", "金額"]);
+      const headerIndex = detailSection.index;
       if (headerIndex === -1) {
-        showToast("找不到可匯入的消費明細，請選擇本 App 匯出的 .xls");
+        showToast("找不到可匯入的消費明細，請選擇本 App 匯出的 Excel");
         return;
       }
 
-      const headers = rows[headerIndex];
+      const headers = detailSection.source[headerIndex];
       const col = name => headers.indexOf(name);
       const required = ["日期", "商店", "金額", "幣別", "類別", "付款方式"];
       if (required.some(name => col(name) === -1)) {
@@ -711,17 +841,21 @@ export default function App() {
         return;
       }
 
-      const categoryHeaderIndex = findHeaderIndex(rows, "消費類別設定", ["類別", "子類別"]);
-      const paymentHeaderIndex = findHeaderIndex(rows, "付款方式設定", ["付款方式", "付款子項目"]);
-      const currencyHeaderIndex = findHeaderIndex(rows, "幣別設定", ["幣別名稱", "幣別代碼"]);
-      const projectHeaderIndex = findHeaderIndex(rows, "專案設定", ["專案名稱"]);
+      const categorySection = headerFor("消費類別設定", ["類別", "子類別"]);
+      const paymentSection = headerFor("付款方式設定", ["付款方式", "付款子項目"]);
+      const currencySection = headerFor("幣別設定", ["幣別名稱", "幣別代碼"]);
+      const projectSection = headerFor("專案設定", ["專案名稱"]);
+      const categoryHeaderIndex = categorySection.index;
+      const paymentHeaderIndex = paymentSection.index;
+      const currencyHeaderIndex = currencySection.index;
+      const projectHeaderIndex = projectSection.index;
 
       let nextCategories = { ...categories };
       let nextCatIcons = { ...catIcons };
       if (categoryHeaderIndex !== -1) {
-        const categoryHeaders = rows[categoryHeaderIndex];
+        const categoryHeaders = categorySection.source[categoryHeaderIndex];
         const ccol = name => categoryHeaders.indexOf(name);
-        const importedCategoryRows = sectionDataRows(rows, categoryHeaderIndex).sort((a, b) => {
+        const importedCategoryRows = sectionDataRows(categorySection.source, categoryHeaderIndex).sort((a, b) => {
           const ap = Number(a[ccol("類別排序")] || 0);
           const bp = Number(b[ccol("類別排序")] || 0);
           const ac = Number(a[ccol("子類別排序")] || 0);
@@ -742,9 +876,9 @@ export default function App() {
 
       let nextPayments = { ...payments };
       if (paymentHeaderIndex !== -1) {
-        const paymentHeaders = rows[paymentHeaderIndex];
+        const paymentHeaders = paymentSection.source[paymentHeaderIndex];
         const pcol = name => paymentHeaders.indexOf(name);
-        const importedPaymentRows = sectionDataRows(rows, paymentHeaderIndex).sort((a, b) => {
+        const importedPaymentRows = sectionDataRows(paymentSection.source, paymentHeaderIndex).sort((a, b) => {
           const ap = Number(a[pcol("付款方式排序")] || 0);
           const bp = Number(b[pcol("付款方式排序")] || 0);
           const ac = Number(a[pcol("子項目排序")] || 0);
@@ -764,9 +898,9 @@ export default function App() {
       let nextCustomCurrencies = [...customCurrencies];
       let nextCurrencyCodes = [...currencyOrderCodes];
       if (currencyHeaderIndex !== -1) {
-        const currencyHeaders = rows[currencyHeaderIndex];
+        const currencyHeaders = currencySection.source[currencyHeaderIndex];
         const curCol = name => currencyHeaders.indexOf(name);
-        const importedCurrencyRows = sectionDataRows(rows, currencyHeaderIndex).sort((a, b) => Number(a[curCol("排序")] || 0) - Number(b[curCol("排序")] || 0));
+        const importedCurrencyRows = sectionDataRows(currencySection.source, currencyHeaderIndex).sort((a, b) => Number(a[curCol("排序")] || 0) - Number(b[curCol("排序")] || 0));
         nextCustomCurrencies = [];
         nextCurrencyCodes = [];
         importedCurrencyRows.forEach(row => {
@@ -783,9 +917,9 @@ export default function App() {
       const projectByName = new Map(nextProjects.map(p => [p.name, p]));
       const projectIdMap = new Map();
       if (projectHeaderIndex !== -1) {
-        const projectHeaders = rows[projectHeaderIndex];
+        const projectHeaders = projectSection.source[projectHeaderIndex];
         const projCol = name => projectHeaders.indexOf(name);
-        sectionDataRows(rows, projectHeaderIndex).forEach((row, idx) => {
+        sectionDataRows(projectSection.source, projectHeaderIndex).forEach((row, idx) => {
           const oldId = projCol("專案ID") >= 0 ? row[projCol("專案ID")] : "";
           const name = row[projCol("專案名稱")];
           if (!name) return;
@@ -829,7 +963,7 @@ export default function App() {
       ].join("|")));
 
       const importedExpenses = [];
-      for (const row of sectionDataRows(rows, headerIndex)) {
+      for (const row of sectionDataRows(detailSection.source, headerIndex)) {
         if (!row.length || row.every(value => !value) || row.join("").includes("此篩選條件無消費紀錄")) continue;
         const date = normalizeDateText(row[col("日期")]);
         const amount = parseMoney(row[col("金額")]);
@@ -899,7 +1033,7 @@ export default function App() {
       showToast(`✅ 已匯入 ${importedExpenses.length} 筆消費，設定與專案已同步`);
     } catch (error) {
       console.error(error);
-      showToast("匯入失敗，請確認是本 App 匯出的 .xls");
+      showToast("匯入失敗，請確認是本 App 匯出的 Excel");
     } finally {
       setImportingExcel(false);
     }
@@ -1213,7 +1347,7 @@ function StatsView(props) {
       <div style={{ display: "flex", gap: 6 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 5, background: importingExcel ? "#c7c7cc" : "#ff9500", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: importingExcel ? "default" : "pointer", fontWeight: 600 }}>
           ⬆ 匯入
-          <input type="file" accept=".xls,.html,text/html,application/vnd.ms-excel" disabled={importingExcel} onChange={e => { onImportStats(e.target.files?.[0]); e.target.value = ""; }} style={{ display: "none" }} />
+          <input type="file" accept=".xlsx,.xls,.html,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/html,application/vnd.ms-excel" disabled={importingExcel} onChange={e => { onImportStats(e.target.files?.[0]); e.target.value = ""; }} style={{ display: "none" }} />
         </label>
         <button onClick={onExportStats} style={{ display: "flex", alignItems: "center", gap: 5, background: "#34c759", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>⬇ 匯出</button>
         <button onClick={() => setShowStatsFilter(!showStatsFilter)} style={{ display: "flex", alignItems: "center", gap: 5, background: activeFilterCount > 0 ? "#007aff" : "#e5e5ea", color: activeFilterCount > 0 ? "#fff" : "#555", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>
