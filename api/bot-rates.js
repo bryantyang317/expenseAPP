@@ -1,6 +1,4 @@
 const BOT_RATE_URL = "https://rate.bot.com.tw/xrt/flcsv/0/day";
-const TARGET_CODES = new Set(["USD", "JPY", "EUR", "CNY", "KRW"]);
-
 const parseNumber = value => {
   const n = Number(String(value || "").trim());
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -13,10 +11,10 @@ const parseRates = csv => {
   for (const line of lines) {
     const cells = line.split(",").map(cell => cell.replace(/^"|"$/g, "").trim());
     const code = cells[0];
-    if (!TARGET_CODES.has(code)) continue;
+    if (!/^[A-Z]{3}$/.test(code)) continue;
 
-    // 臺銀 flcsv 欄位通常為：幣別、現金買入、現金賣出、即期買入、即期賣出...
-    const cashSell = parseNumber(cells[2]);
+    // 臺銀 flcsv 欄位：[2] 現金本行買入、[3] 現金本行賣出。
+    const cashSell = parseNumber(cells[3]);
     if (cashSell) rates[code] = cashSell;
   }
 
