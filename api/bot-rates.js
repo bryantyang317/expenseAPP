@@ -1,4 +1,5 @@
 const BOT_RATE_URL = "https://rate.bot.com.tw/xrt/flcsv/0/day";
+
 const parseNumber = value => {
   const n = Number(String(value || "").trim());
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -13,7 +14,7 @@ const parseRates = csv => {
     const code = cells[0];
     if (!/^[A-Z]{3}$/.test(code)) continue;
 
-    // 臺銀 flcsv 欄位：[2] 現金本行買入、[3] 現金本行賣出。
+    // Bank of Taiwan flcsv: cells[3] is cash sell rate.
     const cashSell = parseNumber(cells[3]);
     if (cashSell) rates[code] = cashSell;
   }
@@ -36,6 +37,11 @@ export default async function handler(req, res) {
 
     const csv = await response.text();
     const rates = parseRates(csv);
+
+    if (!Object.keys(rates).length) {
+      res.status(502).json({ error: "BOT_RATE_PARSE_FAILED" });
+      return;
+    }
 
     res.setHeader("Cache-Control", "s-maxage=600, stale-while-revalidate=1800");
     res.status(200).json({
