@@ -1080,6 +1080,23 @@ function RatesPanel({ botRates, onLoad }) {
           style={{ display: "block", marginTop: 12, padding: "10px 0", textAlign: "center", background: "#f5f5f7", borderRadius: 10, fontSize: 15, fontWeight: 600, color: "#007aff", textDecoration: "none" }}>
           🌐 前往台灣銀行下載匯率 CSV
         </a>
+        <button type="button"
+          onClick={() => { window.location.href = "googlechromes://rate.bot.com.tw/xrt/flcsv/0/day"; }}
+          style={{ display: "block", width: "100%", border: "none", marginTop: 8, padding: "10px 0", textAlign: "center", background: "#f5f5f7", borderRadius: 10, fontSize: 15, fontWeight: 600, color: "#007aff" }}>
+          🧭 用 Chrome 開啟下載（已安裝 Chrome 時）
+        </button>
+        <button type="button"
+          onClick={async () => {
+            const url = "https://rate.bot.com.tw/xrt/flcsv/0/day";
+            try {
+              if (navigator.share) { await navigator.share({ url }); return; }
+              await navigator.clipboard.writeText(url);
+              alert("已複製網址，請貼到 Chrome 或 Safari 開啟");
+            } catch { /* 使用者取消分享 */ }
+          }}
+          style={{ display: "block", width: "100%", border: "none", marginTop: 8, padding: "10px 0", textAlign: "center", background: "#f5f5f7", borderRadius: 10, fontSize: 15, fontWeight: 600, color: "#007aff" }}>
+          📤 分享／複製網址（再選 Chrome 或 Safari）
+        </button>
       </div>
 
       <label style={{ display: "block", background: parsing ? "#c7c7cc" : "#007aff", color: "#fff", borderRadius: 14, padding: 14, textAlign: "center", fontSize: 16, fontWeight: 600, cursor: parsing ? "default" : "pointer", marginBottom: 16 }}>
