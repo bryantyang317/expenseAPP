@@ -359,6 +359,9 @@ export default function App() {
   const [customCurrencies, setCustomCurrencies] = useState([]);
   const [currencyOrderCodes, setCurrencyOrderCodes] = useState(CURRENCY_OPTIONS.map(c => c.code));
   const [newCurrency, setNewCurrency] = useState({ name: "", code: "" });
+  // ── 新增：台銀匯率 state ──
+  const [botRates, setBotRates] = useState({});
+
   const currencyOptions = [...CURRENCY_OPTIONS, ...customCurrencies].sort((a, b) => {
     const ai = currencyOrderCodes.indexOf(a.code);
     const bi = currencyOrderCodes.indexOf(b.code);
@@ -385,6 +388,8 @@ export default function App() {
       const pm = normalizePayments(await load("pay_v2"));
       const cc = await load("currency_v1") || [];
       const co = await load("currency_order_v1") || CURRENCY_OPTIONS.map(item => item.code);
+      // ── 新增：載入台銀匯率 ──
+      const br = await load("bot_rates_v1") || {};
       setProjects(p);
       setExpenses(e);
       setCategories(c);
@@ -392,6 +397,7 @@ export default function App() {
       setPayments(pm);
       setCustomCurrencies(cc);
       setCurrencyOrderCodes(co);
+      setBotRates(br);
       await save("pay_v2", pm);
       setReady(true);
     })();
@@ -401,34 +407,15 @@ export default function App() {
     setToast(msg);
     setTimeout(() => setToast(""), 2200);
   };
-  const saveProjects = async p => {
-    setProjects(p);
-    await save("proj_v1", p);
-  };
-  const saveExpenses = async e => {
-    setExpenses(e);
-    await save("exp_v1", e);
-  };
-  const saveCategories = async c => {
-    setCategories(c);
-    await save("cat_v2", c);
-  };
-  const saveCatIcons = async icons => {
-    setCatIcons(icons);
-    await save("cat_icons_v1", icons);
-  };
-  const saveCustomCurrencies = async currencies => {
-    setCustomCurrencies(currencies);
-    await save("currency_v1", currencies);
-  };
-  const saveCurrencyOrder = async codes => {
-    setCurrencyOrderCodes(codes);
-    await save("currency_order_v1", codes);
-  };
-  const savePayments = async p => {
-    setPayments(p);
-    await save("pay_v2", p);
-  };
+  const saveProjects = async p => { setProjects(p); await save("proj_v1", p); };
+  const saveExpenses = async e => { setExpenses(e); await save("exp_v1", e); };
+  const saveCategories = async c => { setCategories(c); await save("cat_v2", c); };
+  const saveCatIcons = async icons => { setCatIcons(icons); await save("cat_icons_v1", icons); };
+  const saveCustomCurrencies = async currencies => { setCustomCurrencies(currencies); await save("currency_v1", currencies); };
+  const saveCurrencyOrder = async codes => { setCurrencyOrderCodes(codes); await save("currency_order_v1", codes); };
+  const savePayments = async p => { setPayments(p); await save("pay_v2", p); };
+  // ── 新增：儲存台銀匯率 ──
+  const saveBotRates = async rates => { setBotRates(rates); await save("bot_rates_v1", rates); };
 
   const getExpDateStr = e => (e.datetime || e.createdAt || "").slice(0, 10);
 
@@ -466,12 +453,7 @@ export default function App() {
     if (!form.category) return showToast("請選擇消費類別");
     if (!form.payment) return showToast("請選擇付款方式");
     if (!form.currency) return showToast("請選擇付款幣別");
-    const next = expenses.map(e => e.id === editingExpenseId ? {
-      ...e,
-      ...form,
-      amount: parseFloat(form.amount),
-      updatedAt: new Date().toISOString()
-    } : e);
+    const next = expenses.map(e => e.id === editingExpenseId ? { ...e, ...form, amount: parseFloat(form.amount), updatedAt: new Date().toISOString() } : e);
     await saveExpenses(next);
     setEditingExpenseId(null);
     setModal(null);
@@ -480,13 +462,7 @@ export default function App() {
   const addProject = async () => {
     if (!newProj.name.trim()) return showToast("請輸入專案名稱");
     if (!newProj.exchangeRate || isNaN(newProj.exchangeRate) || Number(newProj.exchangeRate) <= 0) return showToast("請輸入有效匯率");
-    const p = {
-      id: Date.now().toString(),
-      ...newProj,
-      budget: newProj.budget ? parseFloat(newProj.budget) : null,
-      exchangeRate: parseFloat(newProj.exchangeRate),
-      createdAt: new Date().toISOString()
-    };
+    const p = { id: Date.now().toString(), ...newProj, budget: newProj.budget ? parseFloat(newProj.budget) : null, exchangeRate: parseFloat(newProj.exchangeRate), createdAt: new Date().toISOString() };
     await saveProjects([...projects, p]);
     setNewProj({ name: "", desc: "", budget: "", currency: "TWD", exchangeRate: "1" });
     setModal(null);
@@ -494,36 +470,21 @@ export default function App() {
   };
   const openProjectEditor = project => {
     setActiveProject(project);
-    setNewProj({
-      name: project.name || "",
-      desc: project.desc || "",
-      budget: project.budget ?? "",
-      currency: normalizeCurrencyCode(project.currency || "TWD"),
-      exchangeRate: String(project.exchangeRate || 1)
-    });
+    setNewProj({ name: project.name || "", desc: project.desc || "", budget: project.budget ?? "", currency: normalizeCurrencyCode(project.currency || "TWD"), exchangeRate: String(project.exchangeRate || 1) });
     setModal("edit_project");
   };
   const updateProject = async () => {
     if (!activeProject) return;
     if (!newProj.name.trim()) return showToast("請輸入專案名稱");
     if (!newProj.exchangeRate || isNaN(newProj.exchangeRate) || Number(newProj.exchangeRate) <= 0) return showToast("請輸入有效匯率");
-    const updated = {
-      ...activeProject,
-      ...newProj,
-      budget: newProj.budget ? parseFloat(newProj.budget) : null,
-      exchangeRate: parseFloat(newProj.exchangeRate),
-      updatedAt: new Date().toISOString()
-    };
+    const updated = { ...activeProject, ...newProj, budget: newProj.budget ? parseFloat(newProj.budget) : null, exchangeRate: parseFloat(newProj.exchangeRate), updatedAt: new Date().toISOString() };
     await saveProjects(projects.map(p => p.id === activeProject.id ? updated : p));
     setActiveProject(updated);
     setNewProj({ name: "", desc: "", budget: "", currency: "TWD", exchangeRate: "1" });
     setModal("project_detail");
     showToast("✅ 已更新專案");
   };
-  const deleteExpense = async id => {
-    await saveExpenses(expenses.filter(e => e.id !== id));
-    showToast("已刪除");
-  };
+  const deleteExpense = async id => { await saveExpenses(expenses.filter(e => e.id !== id)); showToast("已刪除"); };
   const deleteProject = async id => {
     await saveProjects(projects.filter(p => p.id !== id));
     await saveExpenses(expenses.filter(e => e.project !== id));
@@ -538,128 +499,90 @@ export default function App() {
     const parentName = newParent.trim();
     await setMap({ ...getMap(), [parentName]: [] });
     if (settingsType === "category") await saveCatIcons({ ...catIcons, [parentName]: newParentIcon });
-    setNewParent("");
-    setNewParentIcon("📌");
-    showToast("✅ 已新增");
+    setNewParent(""); setNewParentIcon("📌"); showToast("✅ 已新增");
   };
   const deleteParent = async key => {
     if (!window.confirm(`確定要刪除「${key}」嗎？`)) return;
-    const m = { ...getMap() };
-    delete m[key];
-    await setMap(m);
-    if (settingsType === "category") {
-      const icons = { ...catIcons };
-      delete icons[key];
-      await saveCatIcons(icons);
-    }
+    const m = { ...getMap() }; delete m[key]; await setMap(m);
+    if (settingsType === "category") { const icons = { ...catIcons }; delete icons[key]; await saveCatIcons(icons); }
     if (expandedParent === key) setExpandedParent(null);
     showToast("已刪除");
   };
   const addChild = async parent => {
-    const val = (newChild[parent] || "").trim();
-    if (!val) return;
+    const val = (newChild[parent] || "").trim(); if (!val) return;
     await setMap({ ...getMap(), [parent]: [...(getMap()[parent] || []), val] });
-    setNewChild({ ...newChild, [parent]: "" });
-    showToast("✅ 已新增子項目");
+    setNewChild({ ...newChild, [parent]: "" }); showToast("✅ 已新增子項目");
   };
   const deleteChild = async (parent, idx) => {
     const child = getMap()[parent]?.[idx] || "";
     if (!window.confirm(`確定要刪除「${child}」嗎？`)) return;
-    const m = { ...getMap() };
-    m[parent] = m[parent].filter((_, i) => i !== idx);
-    await setMap(m);
-    showToast("已刪除");
+    const m = { ...getMap() }; m[parent] = m[parent].filter((_, i) => i !== idx); await setMap(m); showToast("已刪除");
   };
   const moveParent = async (key, direction) => {
-    const entries = Object.entries(getMap());
-    const idx = entries.findIndex(([name]) => name === key);
-    const nextIdx = idx + direction;
+    const entries = Object.entries(getMap()); const idx = entries.findIndex(([name]) => name === key); const nextIdx = idx + direction;
     if (idx < 0 || nextIdx < 0 || nextIdx >= entries.length) return;
-    [entries[idx], entries[nextIdx]] = [entries[nextIdx], entries[idx]];
-    await setMap(Object.fromEntries(entries));
+    [entries[idx], entries[nextIdx]] = [entries[nextIdx], entries[idx]]; await setMap(Object.fromEntries(entries));
   };
   const moveChild = async (parent, idx, direction) => {
-    const children = [...(getMap()[parent] || [])];
-    const nextIdx = idx + direction;
+    const children = [...(getMap()[parent] || [])]; const nextIdx = idx + direction;
     if (nextIdx < 0 || nextIdx >= children.length) return;
-    [children[idx], children[nextIdx]] = [children[nextIdx], children[idx]];
-    await setMap({ ...getMap(), [parent]: children });
+    [children[idx], children[nextIdx]] = [children[nextIdx], children[idx]]; await setMap({ ...getMap(), [parent]: children });
   };
   const addCurrency = async () => {
-    const name = newCurrency.name.trim();
-    const code = newCurrency.code.trim().toUpperCase();
+    const name = newCurrency.name.trim(); const code = newCurrency.code.trim().toUpperCase();
     if (!name) return showToast("請輸入幣別名稱");
     if (!/^[A-Z]{3}$/.test(code)) return showToast("請輸入三碼英文幣別代碼");
     if (currencyOptions.some(c => c.code === code)) return showToast("此幣別代碼已存在");
     await saveCustomCurrencies([...customCurrencies, { label: `${name}${code}`, code }]);
     await saveCurrencyOrder([...currencyOrderCodes, code]);
-    setNewCurrency({ name: "", code: "" });
-    showToast("✅ 已新增幣別");
+    setNewCurrency({ name: "", code: "" }); showToast("✅ 已新增幣別");
   };
   const deleteCurrency = async code => {
     const currency = customCurrencies.find(c => c.code === code);
     if (!window.confirm(`確定要刪除「${currency?.label || code}」嗎？`)) return;
     await saveCustomCurrencies(customCurrencies.filter(c => c.code !== code));
-    await saveCurrencyOrder(currencyOrderCodes.filter(item => item !== code));
-    showToast("已刪除幣別");
+    await saveCurrencyOrder(currencyOrderCodes.filter(item => item !== code)); showToast("已刪除幣別");
   };
   const moveCurrency = async (code, direction) => {
-    const codes = currencyOptions.map(c => c.code);
-    const idx = codes.indexOf(code);
-    const nextIdx = idx + direction;
+    const codes = currencyOptions.map(c => c.code); const idx = codes.indexOf(code); const nextIdx = idx + direction;
     if (idx < 0 || nextIdx < 0 || nextIdx >= codes.length) return;
-    [codes[idx], codes[nextIdx]] = [codes[nextIdx], codes[idx]];
-    await saveCurrencyOrder(codes);
+    [codes[idx], codes[nextIdx]] = [codes[nextIdx], codes[idx]]; await saveCurrencyOrder(codes);
   };
 
   const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
   const firstDayOfWeek = (y, m) => new Date(y, m, 1).getDay();
   const expByDate = {};
-  expenses.forEach(e => {
-    const ds = getExpDateStr(e);
-    if (!expByDate[ds]) expByDate[ds] = [];
-    expByDate[ds].push(e);
-  });
+  expenses.forEach(e => { const ds = getExpDateStr(e); if (!expByDate[ds]) expByDate[ds] = []; expByDate[ds].push(e); });
   const dailyTotals = ds => sumByCurrency(expByDate[ds] || []);
   const selectedExps = (expByDate[selectedDate] || []).sort((a, b) => a.datetime > b.datetime ? 1 : -1);
   const selectedTotals = sumByCurrency(selectedExps);
   const monthTotals = (() => {
-    const totals = {};
-    const { y, m } = calMonth;
+    const totals = {}; const { y, m } = calMonth;
     Object.entries(expByDate).forEach(([ds, exps]) => {
-      if (ds.startsWith(`${y}-${String(m + 1).padStart(2, "0")}`)) {
-        Object.entries(sumByCurrency(exps)).forEach(([code, amt]) => {
-          totals[code] = (totals[code] || 0) + amt;
-        });
-      }
+      if (ds.startsWith(`${y}-${String(m + 1).padStart(2, "0")}`))
+        Object.entries(sumByCurrency(exps)).forEach(([code, amt]) => { totals[code] = (totals[code] || 0) + amt; });
     });
     return totals;
   })();
   const monthExps = (() => {
-    const { y, m } = calMonth;
-    const monthKey = `${y}-${String(m + 1).padStart(2, "0")}`;
+    const { y, m } = calMonth; const monthKey = `${y}-${String(m + 1).padStart(2, "0")}`;
     return expenses.filter(e => getExpDateStr(e).startsWith(monthKey));
   })();
   const projExpenses = pid => expenses.filter(e => e.project === pid);
   const projTotals = pid => sumByCurrency(projExpenses(pid));
   const expenseTwdValue = exp => {
-    const amount = Number(exp.amount || 0);
-    const code = currencyCodeOf(exp);
+    const amount = Number(exp.amount || 0); const code = currencyCodeOf(exp);
     if (code === "TWD") return amount;
     const project = projects.find(p => p.id === exp.project);
     if (!project || normalizeCurrencyCode(project.currency) !== code) return 0;
     return amount * Number(project.exchangeRate || 0);
   };
   const expenseTwdLabel = exp => {
-    const code = currencyCodeOf(exp);
-    if (code === "TWD") return "";
-    const twd = expenseTwdValue(exp);
-    return twd > 0 ? `約 TWD ${fmt(twd)}` : "";
+    const code = currencyCodeOf(exp); if (code === "TWD") return "";
+    const twd = expenseTwdValue(exp); return twd > 0 ? `約 TWD ${fmt(twd)}` : "";
   };
   const monthTwdTotal = monthExps.reduce((sum, exp) => sum + expenseTwdValue(exp), 0);
-  const projectTwdTotal = project => {
-    return projExpenses(project.id).reduce((sum, exp) => sum + expenseTwdValue(exp), 0);
-  };
+  const projectTwdTotal = project => projExpenses(project.id).reduce((sum, exp) => sum + expenseTwdValue(exp), 0);
   const selDateObj = new Date(selectedDate + "T00:00:00");
   const selDateLabel = selDateObj.toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
 
@@ -691,45 +614,24 @@ export default function App() {
 
   const setQuickRange = type => {
     const n = new Date();
-    if (type === "thisMonth") {
-      setStatsFrom(monthStart(n.getFullYear(), n.getMonth()));
-      setStatsTo(todayStr());
-    } else if (type === "lastMonth") {
-      const lm = n.getMonth() === 0 ? { y: n.getFullYear() - 1, m: 11 } : { y: n.getFullYear(), m: n.getMonth() - 1 };
-      setStatsFrom(monthStart(lm.y, lm.m));
-      setStatsTo(monthEnd(lm.y, lm.m));
-    } else if (type === "thisYear") {
-      setStatsFrom(`${n.getFullYear()}-01-01`);
-      setStatsTo(todayStr());
-    } else if (type === "all") {
-      setStatsFrom("");
-      setStatsTo("");
-    }
+    if (type === "thisMonth") { setStatsFrom(monthStart(n.getFullYear(), n.getMonth())); setStatsTo(todayStr()); }
+    else if (type === "lastMonth") { const lm = n.getMonth() === 0 ? { y: n.getFullYear() - 1, m: 11 } : { y: n.getFullYear(), m: n.getMonth() - 1 }; setStatsFrom(monthStart(lm.y, lm.m)); setStatsTo(monthEnd(lm.y, lm.m)); }
+    else if (type === "thisYear") { setStatsFrom(`${n.getFullYear()}-01-01`); setStatsTo(todayStr()); }
+    else if (type === "all") { setStatsFrom(""); setStatsTo(""); }
   };
+
+  // ── 修改：fetchBotRateForProject 改從 localStorage 讀取 ──
   const fetchBotRateForProject = async (target = newProj, setTarget = setNewProj) => {
-    if (target.currency === "TWD") {
-      setTarget({ ...target, exchangeRate: "1" });
+    if (target.currency === "TWD") { setTarget({ ...target, exchangeRate: "1" }); return; }
+    const rate = botRates[target.currency];
+    if (!rate) {
+      showToast(`找不到 ${target.currency} 匯率，請先到「設定 › 📈 匯率」載入台銀 CSV`);
       return;
     }
-
-    setRateLoading(true);
-    try {
-      const response = await fetch("/api/bot-rates");
-      if (!response.ok) throw new Error("rate fetch failed");
-      const data = await response.json();
-      const rate = data.rates?.[target.currency];
-      if (!rate) {
-        showToast("找不到此幣別的臺銀現金賣出匯率");
-        return;
-      }
-      setTarget({ ...target, exchangeRate: String(rate) });
-      showToast(`已帶入臺銀現金賣出 ${target.currency}`);
-    } catch {
-      showToast("無法取得臺銀匯率，請手動輸入");
-    } finally {
-      setRateLoading(false);
-    }
+    setTarget({ ...target, exchangeRate: String(rate) });
+    showToast(`✅ 已帶入臺銀現金賣出 ${target.currency} = ${rate}`);
   };
+
   const exportStatsReport = () => {
     const sorted = [...statsFiltered].sort((a, b) => (a.datetime || "") > (b.datetime || "") ? 1 : -1);
     const dateRange = `${statsFrom || "最早"} ～ ${statsTo || "今天"}`;
@@ -743,21 +645,11 @@ export default function App() {
       const exchangeRate = code !== "TWD" && normalizeCurrencyCode(project?.currency) === code ? Number(project.exchangeRate || 0) : "";
       const twdValue = exchangeRate ? Number(e.amount || 0) * exchangeRate : "";
       detailRows.push([
-        { value: idx + 1, type: "number" },
-        { value: getExpDateStr(e) },
-        { value: e.datetime?.slice(11, 16) || "" },
-        { value: e.store },
-        { value: e.amount, type: "number" },
-        { value: code },
-        { value: e.category },
-        { value: e.payment },
-        { value: project?.name || "" },
-        { value: e.note },
-        { value: exchangeRate || "", type: "number" },
-        { value: twdValue || "", type: "number" },
-        { value: e.subcategory || "" },
-        { value: e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? e.subpayment : "" },
-        { value: e.project || "" }
+        { value: idx + 1, type: "number" }, { value: getExpDateStr(e) }, { value: e.datetime?.slice(11, 16) || "" },
+        { value: e.store }, { value: e.amount, type: "number" }, { value: code }, { value: e.category },
+        { value: e.payment }, { value: project?.name || "" }, { value: e.note },
+        { value: exchangeRate || "", type: "number" }, { value: twdValue || "", type: "number" },
+        { value: e.subcategory || "" }, { value: e.subpayment && !CURRENCY_LABELS.has(e.subpayment) ? e.subpayment : "" }, { value: e.project || "" }
       ]);
     });
     const categoryRows = [["類別", "子類別", "圖示", "類別排序", "子類別排序"].map(value => ({ value }))];
@@ -770,273 +662,115 @@ export default function App() {
     const paymentRows = [["付款方式", "付款子項目", "付款方式排序", "子項目排序"].map(value => ({ value }))];
     Object.entries(payments).forEach(([parent, children], parentIdx) => {
       (children.length ? children : [""]).forEach((child, childIdx) => paymentRows.push([
-        { value: parent }, { value: child }, { value: parentIdx + 1, type: "number" },
-        { value: child ? childIdx + 1 : "", type: "number" }
+        { value: parent }, { value: child }, { value: parentIdx + 1, type: "number" }, { value: child ? childIdx + 1 : "", type: "number" }
       ]));
     });
     const currencyRows = [["幣別名稱", "幣別代碼", "類型", "排序"].map(value => ({ value }))];
     currencyOptions.forEach((currency, idx) => currencyRows.push([
-      { value: currency.label }, { value: currency.code },
-      { value: BUILTIN_CURRENCY_CODES.has(currency.code) ? "內建" : "自訂" },
-      { value: idx + 1, type: "number" }
+      { value: currency.label }, { value: currency.code }, { value: BUILTIN_CURRENCY_CODES.has(currency.code) ? "內建" : "自訂" }, { value: idx + 1, type: "number" }
     ]));
     const projectRows = [["專案ID", "專案名稱", "說明", "預算", "主要幣別", "匯率", "建立時間", "更新時間"].map(value => ({ value }))];
     projects.forEach(project => projectRows.push([
-      { value: project.id }, { value: project.name }, { value: project.desc || "" },
-      { value: project.budget ?? "", type: "number" },
-      { value: normalizeCurrencyCode(project.currency || "TWD") },
-      { value: project.exchangeRate || 1, type: "number" },
+      { value: project.id }, { value: project.name }, { value: project.desc || "" }, { value: project.budget ?? "", type: "number" },
+      { value: normalizeCurrencyCode(project.currency || "TWD") }, { value: project.exchangeRate || 1, type: "number" },
       { value: project.createdAt || "" }, { value: project.updatedAt || "" }
     ]));
     const projectName = statsProject === "__none__" ? "未指定專案" : projects.find(p => p.id === statsProject)?.name;
     const filterParts = [statsCategory, statsPayment, statsProject ? projectName : ""].filter(Boolean).map(safeFilenamePart);
     const blob = buildXlsxBlob([
-      { name: "消費明細", rows: detailRows },
-      { name: "消費類別設定", rows: categoryRows },
-      { name: "付款方式設定", rows: paymentRows },
-      { name: "幣別設定", rows: currencyRows },
-      { name: "專案設定", rows: projectRows }
+      { name: "消費明細", rows: detailRows }, { name: "消費類別設定", rows: categoryRows },
+      { name: "付款方式設定", rows: paymentRows }, { name: "幣別設定", rows: currencyRows }, { name: "專案設定", rows: projectRows }
     ]);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = [`消費統計報表`, filenameDate(statsFrom), filenameDate(statsTo), ...filterParts].join("_") + ".xlsx";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
   };
   const importStatsReport = async file => {
     if (!file) return;
     setImportingExcel(true);
     try {
       const isXlsx = file.name.toLowerCase().endsWith(".xlsx") || file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-      let workbookSheets = null;
-      let rows;
-      if (isXlsx) {
-        workbookSheets = await parseXlsxSheets(file);
-        rows = workbookSheets["消費明細"] || [];
-      } else {
-        const html = await file.text();
-        const doc = new DOMParser().parseFromString(html, "text/html");
-        rows = [...doc.querySelectorAll("tr")].map(row => [...row.cells].map(cellText));
-      }
+      let workbookSheets = null; let rows;
+      if (isXlsx) { workbookSheets = await parseXlsxSheets(file); rows = workbookSheets["消費明細"] || []; }
+      else { const html = await file.text(); const doc = new DOMParser().parseFromString(html, "text/html"); rows = [...doc.querySelectorAll("tr")].map(row => [...row.cells].map(cellText)); }
       const sourceFor = sectionName => workbookSheets?.[sectionName] || rows;
-      const headerFor = (sectionName, requiredHeaders) => {
-        const source = sourceFor(sectionName);
-        return { source, index: findHeaderIndex(source, workbookSheets ? "" : sectionName, requiredHeaders) };
-      };
+      const headerFor = (sectionName, requiredHeaders) => { const source = sourceFor(sectionName); return { source, index: findHeaderIndex(source, workbookSheets ? "" : sectionName, requiredHeaders) }; };
       const detailSection = headerFor("消費明細", ["日期", "商店", "金額"]);
       const headerIndex = detailSection.index;
-      if (headerIndex === -1) {
-        showToast("找不到可匯入的消費明細，請選擇本 App 匯出的 Excel");
-        return;
-      }
-
+      if (headerIndex === -1) { showToast("找不到可匯入的消費明細，請選擇本 App 匯出的 Excel"); return; }
       const headers = detailSection.source[headerIndex];
       const col = name => headers.indexOf(name);
       const required = ["日期", "商店", "金額", "幣別", "類別", "付款方式"];
-      if (required.some(name => col(name) === -1)) {
-        showToast("Excel 欄位不完整，無法匯入");
-        return;
-      }
-
+      if (required.some(name => col(name) === -1)) { showToast("Excel 欄位不完整，無法匯入"); return; }
       const categorySection = headerFor("消費類別設定", ["類別", "子類別"]);
       const paymentSection = headerFor("付款方式設定", ["付款方式", "付款子項目"]);
       const currencySection = headerFor("幣別設定", ["幣別名稱", "幣別代碼"]);
       const projectSection = headerFor("專案設定", ["專案名稱"]);
-      const categoryHeaderIndex = categorySection.index;
-      const paymentHeaderIndex = paymentSection.index;
-      const currencyHeaderIndex = currencySection.index;
-      const projectHeaderIndex = projectSection.index;
-
-      let nextCategories = { ...categories };
-      let nextCatIcons = { ...catIcons };
+      const categoryHeaderIndex = categorySection.index; const paymentHeaderIndex = paymentSection.index;
+      const currencyHeaderIndex = currencySection.index; const projectHeaderIndex = projectSection.index;
+      let nextCategories = { ...categories }; let nextCatIcons = { ...catIcons };
       if (categoryHeaderIndex !== -1) {
-        const categoryHeaders = categorySection.source[categoryHeaderIndex];
-        const ccol = name => categoryHeaders.indexOf(name);
-        const importedCategoryRows = sectionDataRows(categorySection.source, categoryHeaderIndex).sort((a, b) => {
-          const ap = Number(a[ccol("類別排序")] || 0);
-          const bp = Number(b[ccol("類別排序")] || 0);
-          const ac = Number(a[ccol("子類別排序")] || 0);
-          const bc = Number(b[ccol("子類別排序")] || 0);
-          return ap - bp || ac - bc;
-        });
-        nextCategories = {};
-        nextCatIcons = {};
-        importedCategoryRows.forEach(row => {
-          const parent = row[ccol("類別")];
-          const child = row[ccol("子類別")];
-          if (!parent) return;
-          if (!nextCategories[parent]) nextCategories[parent] = [];
-          if (child && !nextCategories[parent].includes(child)) nextCategories[parent].push(child);
-          nextCatIcons[parent] = row[ccol("圖示")] || nextCatIcons[parent] || "📌";
-        });
+        const categoryHeaders = categorySection.source[categoryHeaderIndex]; const ccol = name => categoryHeaders.indexOf(name);
+        const importedCategoryRows = sectionDataRows(categorySection.source, categoryHeaderIndex).sort((a, b) => { const ap = Number(a[ccol("類別排序")] || 0); const bp = Number(b[ccol("類別排序")] || 0); const ac = Number(a[ccol("子類別排序")] || 0); const bc = Number(b[ccol("子類別排序")] || 0); return ap - bp || ac - bc; });
+        nextCategories = {}; nextCatIcons = {};
+        importedCategoryRows.forEach(row => { const parent = row[ccol("類別")]; const child = row[ccol("子類別")]; if (!parent) return; if (!nextCategories[parent]) nextCategories[parent] = []; if (child && !nextCategories[parent].includes(child)) nextCategories[parent].push(child); nextCatIcons[parent] = row[ccol("圖示")] || nextCatIcons[parent] || "📌"; });
       }
-
       let nextPayments = { ...payments };
       if (paymentHeaderIndex !== -1) {
-        const paymentHeaders = paymentSection.source[paymentHeaderIndex];
-        const pcol = name => paymentHeaders.indexOf(name);
-        const importedPaymentRows = sectionDataRows(paymentSection.source, paymentHeaderIndex).sort((a, b) => {
-          const ap = Number(a[pcol("付款方式排序")] || 0);
-          const bp = Number(b[pcol("付款方式排序")] || 0);
-          const ac = Number(a[pcol("子項目排序")] || 0);
-          const bc = Number(b[pcol("子項目排序")] || 0);
-          return ap - bp || ac - bc;
-        });
+        const paymentHeaders = paymentSection.source[paymentHeaderIndex]; const pcol = name => paymentHeaders.indexOf(name);
+        const importedPaymentRows = sectionDataRows(paymentSection.source, paymentHeaderIndex).sort((a, b) => { const ap = Number(a[pcol("付款方式排序")] || 0); const bp = Number(b[pcol("付款方式排序")] || 0); const ac = Number(a[pcol("子項目排序")] || 0); const bc = Number(b[pcol("子項目排序")] || 0); return ap - bp || ac - bc; });
         nextPayments = {};
-        importedPaymentRows.forEach(row => {
-          const parent = row[pcol("付款方式")];
-          const child = row[pcol("付款子項目")];
-          if (!parent) return;
-          if (!nextPayments[parent]) nextPayments[parent] = [];
-          if (child && !nextPayments[parent].includes(child)) nextPayments[parent].push(child);
-        });
+        importedPaymentRows.forEach(row => { const parent = row[pcol("付款方式")]; const child = row[pcol("付款子項目")]; if (!parent) return; if (!nextPayments[parent]) nextPayments[parent] = []; if (child && !nextPayments[parent].includes(child)) nextPayments[parent].push(child); });
       }
-
-      let nextCustomCurrencies = [...customCurrencies];
-      let nextCurrencyCodes = [...currencyOrderCodes];
+      let nextCustomCurrencies = [...customCurrencies]; let nextCurrencyCodes = [...currencyOrderCodes];
       if (currencyHeaderIndex !== -1) {
-        const currencyHeaders = currencySection.source[currencyHeaderIndex];
-        const curCol = name => currencyHeaders.indexOf(name);
+        const currencyHeaders = currencySection.source[currencyHeaderIndex]; const curCol = name => currencyHeaders.indexOf(name);
         const importedCurrencyRows = sectionDataRows(currencySection.source, currencyHeaderIndex).sort((a, b) => Number(a[curCol("排序")] || 0) - Number(b[curCol("排序")] || 0));
-        nextCustomCurrencies = [];
-        nextCurrencyCodes = [];
-        importedCurrencyRows.forEach(row => {
-          const code = normalizeCurrencyCode((row[curCol("幣別代碼")] || "").toUpperCase());
-          const label = row[curCol("幣別名稱")] || code;
-          if (!/^[A-Z]{3}$/.test(code)) return;
-          if (!nextCurrencyCodes.includes(code)) nextCurrencyCodes.push(code);
-          if (!BUILTIN_CURRENCY_CODES.has(code) && !nextCustomCurrencies.some(c => c.code === code)) nextCustomCurrencies.push({ label, code });
-        });
+        nextCustomCurrencies = []; nextCurrencyCodes = [];
+        importedCurrencyRows.forEach(row => { const code = normalizeCurrencyCode((row[curCol("幣別代碼")] || "").toUpperCase()); const label = row[curCol("幣別名稱")] || code; if (!/^[A-Z]{3}$/.test(code)) return; if (!nextCurrencyCodes.includes(code)) nextCurrencyCodes.push(code); if (!BUILTIN_CURRENCY_CODES.has(code) && !nextCustomCurrencies.some(c => c.code === code)) nextCustomCurrencies.push({ label, code }); });
       }
-
-      const nextProjects = [...projects];
-      const projectById = new Map(nextProjects.map(p => [p.id, p]));
-      const projectByName = new Map(nextProjects.map(p => [p.name, p]));
-      const projectIdMap = new Map();
+      const nextProjects = [...projects]; const projectById = new Map(nextProjects.map(p => [p.id, p])); const projectByName = new Map(nextProjects.map(p => [p.name, p])); const projectIdMap = new Map();
       if (projectHeaderIndex !== -1) {
-        const projectHeaders = projectSection.source[projectHeaderIndex];
-        const projCol = name => projectHeaders.indexOf(name);
+        const projectHeaders = projectSection.source[projectHeaderIndex]; const projCol = name => projectHeaders.indexOf(name);
         sectionDataRows(projectSection.source, projectHeaderIndex).forEach((row, idx) => {
-          const oldId = projCol("專案ID") >= 0 ? row[projCol("專案ID")] : "";
-          const name = row[projCol("專案名稱")];
-          if (!name) return;
-          const imported = {
-            id: oldId || `import_project_${Date.now()}_${idx}`,
-            name,
-            desc: projCol("說明") >= 0 ? row[projCol("說明")] : "",
-            budget: projCol("預算") >= 0 && row[projCol("預算")] ? parseMoney(row[projCol("預算")]) : null,
-            currency: normalizeCurrencyCode((projCol("主要幣別") >= 0 ? row[projCol("主要幣別")] : "TWD") || "TWD"),
-            exchangeRate: projCol("匯率") >= 0 && parseMoney(row[projCol("匯率")]) ? parseMoney(row[projCol("匯率")]) : 1,
-            createdAt: projCol("建立時間") >= 0 ? row[projCol("建立時間")] : new Date().toISOString(),
-            updatedAt: projCol("更新時間") >= 0 ? row[projCol("更新時間")] : ""
-          };
+          const oldId = projCol("專案ID") >= 0 ? row[projCol("專案ID")] : ""; const name = row[projCol("專案名稱")]; if (!name) return;
+          const imported = { id: oldId || `import_project_${Date.now()}_${idx}`, name, desc: projCol("說明") >= 0 ? row[projCol("說明")] : "", budget: projCol("預算") >= 0 && row[projCol("預算")] ? parseMoney(row[projCol("預算")]) : null, currency: normalizeCurrencyCode((projCol("主要幣別") >= 0 ? row[projCol("主要幣別")] : "TWD") || "TWD"), exchangeRate: projCol("匯率") >= 0 && parseMoney(row[projCol("匯率")]) ? parseMoney(row[projCol("匯率")]) : 1, createdAt: projCol("建立時間") >= 0 ? row[projCol("建立時間")] : new Date().toISOString(), updatedAt: projCol("更新時間") >= 0 ? row[projCol("更新時間")] : "" };
           const existing = (oldId && projectById.get(oldId)) || projectByName.get(name);
-          if (existing) {
-            Object.assign(existing, imported, { id: existing.id });
-            if (oldId) projectIdMap.set(oldId, existing.id);
-            projectByName.set(existing.name, existing);
-          } else {
-            const uniqueId = projectById.has(imported.id) ? `import_project_${Date.now()}_${idx}` : imported.id;
-            const project = { ...imported, id: uniqueId };
-            nextProjects.push(project);
-            projectById.set(project.id, project);
-            projectByName.set(project.name, project);
-            if (oldId) projectIdMap.set(oldId, project.id);
-          }
+          if (existing) { Object.assign(existing, imported, { id: existing.id }); if (oldId) projectIdMap.set(oldId, existing.id); projectByName.set(existing.name, existing); }
+          else { const uniqueId = projectById.has(imported.id) ? `import_project_${Date.now()}_${idx}` : imported.id; const project = { ...imported, id: uniqueId }; nextProjects.push(project); projectById.set(project.id, project); projectByName.set(project.name, project); if (oldId) projectIdMap.set(oldId, project.id); }
         });
       }
-
-      const seenExpenseKeys = new Set(expenses.map(e => [
-        e.datetime || "",
-        e.store || "",
-        Number(e.amount || 0),
-        currencyCodeOf(e),
-        e.category || "",
-        e.subcategory || "",
-        e.payment || "",
-        e.subpayment || "",
-        e.project ? projects.find(p => p.id === e.project)?.name || "" : "",
-        e.note || ""
-      ].join("|")));
-
+      const seenExpenseKeys = new Set(expenses.map(e => [e.datetime || "", e.store || "", Number(e.amount || 0), currencyCodeOf(e), e.category || "", e.subcategory || "", e.payment || "", e.subpayment || "", e.project ? projects.find(p => p.id === e.project)?.name || "" : "", e.note || ""].join("|")));
       const importedExpenses = [];
       for (const row of sectionDataRows(detailSection.source, headerIndex)) {
         if (!row.length || row.every(value => !value) || row.join("").includes("此篩選條件無消費紀錄")) continue;
-        const date = normalizeDateText(row[col("日期")]);
-        const amount = parseMoney(row[col("金額")]);
-        const store = row[col("商店")] || "";
-        const currency = normalizeCurrencyCode((row[col("幣別")] || "TWD").toUpperCase());
-        const category = row[col("類別")] || "其他";
-        const subcategory = col("子類別") >= 0 ? row[col("子類別")] : "";
-        const payment = row[col("付款方式")] || "其他";
-        const subpayment = col("付款子項目") >= 0 ? row[col("付款子項目")] : "";
-        const projectName = col("專案") >= 0 ? row[col("專案")] : "";
-        const oldProjectId = col("專案ID") >= 0 ? row[col("專案ID")] : "";
-        const note = col("備註") >= 0 ? row[col("備註")] : "";
+        const date = normalizeDateText(row[col("日期")]); const amount = parseMoney(row[col("金額")]); const store = row[col("商店")] || ""; const currency = normalizeCurrencyCode((row[col("幣別")] || "TWD").toUpperCase()); const category = row[col("類別")] || "其他"; const subcategory = col("子類別") >= 0 ? row[col("子類別")] : ""; const payment = row[col("付款方式")] || "其他"; const subpayment = col("付款子項目") >= 0 ? row[col("付款子項目")] : ""; const projectName = col("專案") >= 0 ? row[col("專案")] : ""; const oldProjectId = col("專案ID") >= 0 ? row[col("專案ID")] : ""; const note = col("備註") >= 0 ? row[col("備註")] : "";
         if (!date || amount === null || !store) continue;
-
-        if (!nextCategories[category]) {
-          nextCategories[category] = [];
-          nextCatIcons[category] = "📌";
-        }
+        if (!nextCategories[category]) { nextCategories[category] = []; nextCatIcons[category] = "📌"; }
         if (subcategory && !nextCategories[category].includes(subcategory)) nextCategories[category] = [...nextCategories[category], subcategory];
         if (!nextPayments[payment]) nextPayments[payment] = [];
         if (subpayment && !nextPayments[payment].includes(subpayment)) nextPayments[payment] = [...nextPayments[payment], subpayment];
-        if (/^[A-Z]{3}$/.test(currency) && !BUILTIN_CURRENCY_CODES.has(currency) && !nextCustomCurrencies.some(c => c.code === currency)) {
-          nextCustomCurrencies.push({ label: currency, code: currency });
-          if (!nextCurrencyCodes.includes(currency)) nextCurrencyCodes.push(currency);
-        }
-
+        if (/^[A-Z]{3}$/.test(currency) && !BUILTIN_CURRENCY_CODES.has(currency) && !nextCustomCurrencies.some(c => c.code === currency)) { nextCustomCurrencies.push({ label: currency, code: currency }); if (!nextCurrencyCodes.includes(currency)) nextCurrencyCodes.push(currency); }
         let projectId = "";
         if (oldProjectId || projectName) {
           let project = (oldProjectId && projectById.get(projectIdMap.get(oldProjectId) || oldProjectId)) || projectByName.get(projectName);
-          if (!project) {
-            project = { id: `import_project_${Date.now()}_${nextProjects.length}`, name: projectName || "匯入專案", desc: "由 Excel 匯入", budget: null, currency: "TWD", exchangeRate: 1, createdAt: new Date().toISOString() };
-            projectByName.set(projectName, project);
-            projectById.set(project.id, project);
-            nextProjects.push(project);
-            if (oldProjectId) projectIdMap.set(oldProjectId, project.id);
-          }
+          if (!project) { project = { id: `import_project_${Date.now()}_${nextProjects.length}`, name: projectName || "匯入專案", desc: "由 Excel 匯入", budget: null, currency: "TWD", exchangeRate: 1, createdAt: new Date().toISOString() }; projectByName.set(projectName, project); projectById.set(project.id, project); nextProjects.push(project); if (oldProjectId) projectIdMap.set(oldProjectId, project.id); }
           projectId = project.id;
         }
-
         const datetime = `${date}T${normalizeTimeText(col("時間") >= 0 ? row[col("時間")] : "")}`;
         const dedupeKey = [datetime, store, amount, currency, category, subcategory, payment, subpayment, projectName, note].join("|");
         if (seenExpenseKeys.has(dedupeKey)) continue;
         seenExpenseKeys.add(dedupeKey);
-        importedExpenses.push({
-          id: `import_expense_${Date.now()}_${importedExpenses.length}`,
-          amount,
-          store,
-          category,
-          subcategory,
-          payment,
-          subpayment,
-          currency,
-          note,
-          datetime,
-          project: projectId,
-          createdAt: new Date().toISOString()
-        });
+        importedExpenses.push({ id: `import_expense_${Date.now()}_${importedExpenses.length}`, amount, store, category, subcategory, payment, subpayment, currency, note, datetime, project: projectId, createdAt: new Date().toISOString() });
       }
-
-      await saveProjects(nextProjects);
-      await saveCategories(nextCategories);
-      await saveCatIcons(nextCatIcons);
-      await savePayments(normalizePayments(nextPayments));
-      await saveCustomCurrencies(nextCustomCurrencies);
-      await saveCurrencyOrder(nextCurrencyCodes);
+      await saveProjects(nextProjects); await saveCategories(nextCategories); await saveCatIcons(nextCatIcons);
+      await savePayments(normalizePayments(nextPayments)); await saveCustomCurrencies(nextCustomCurrencies); await saveCurrencyOrder(nextCurrencyCodes);
       if (importedExpenses.length > 0) await saveExpenses([...importedExpenses, ...expenses]);
       showToast(`✅ 已匯入 ${importedExpenses.length} 筆消費，設定與專案已同步`);
-    } catch (error) {
-      console.error(error);
-      showToast("匯入失敗，請確認是本 App 匯出的 Excel");
-    } finally {
-      setImportingExcel(false);
-    }
+    } catch (error) { console.error(error); showToast("匯入失敗，請確認是本 App 匯出的 Excel"); }
+    finally { setImportingExcel(false); }
   };
 
   if (!ready) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontSize: 20, color: "#888" }}>載入中…</div>;
@@ -1080,24 +814,16 @@ export default function App() {
               {WEEKDAYS.map((w, i) => <div key={w} style={{ textAlign: "center", fontSize: 13, fontWeight: 600, color: i === 0 ? "#ff3b30" : i === 6 ? "#007aff" : "#8e8e93", padding: "2px 0" }}>{w}</div>)}
             </div>
             {(() => {
-              const { y, m } = calMonth;
-              const total = daysInMonth(y, m);
-              const first = firstDayOfWeek(y, m);
-              const cells = [];
-              for (let i = 0; i < first; i++) cells.push(null);
-              for (let d = 1; d <= total; d++) cells.push(d);
-              const rows = [];
-              for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+              const { y, m } = calMonth; const total = daysInMonth(y, m); const first = firstDayOfWeek(y, m);
+              const cells = []; for (let i = 0; i < first; i++) cells.push(null); for (let d = 1; d <= total; d++) cells.push(d);
+              const rows = []; for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
               return rows.map((row, ri) => (
                 <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", marginBottom: 2 }}>
                   {row.map((d, ci) => {
                     if (!d) return <div key={ci} />;
                     const ds = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-                    const isSel = ds === selectedDate;
-                    const isToday = ds === todayStr();
-                    const dayTotals = dailyTotals(ds);
-                    const dayCodes = Object.keys(dayTotals);
-                    const hasDot = dayCodes.length > 0;
+                    const isSel = ds === selectedDate; const isToday = ds === todayStr();
+                    const dayTotals = dailyTotals(ds); const dayCodes = Object.keys(dayTotals); const hasDot = dayCodes.length > 0;
                     const realDow = new Date(y, m, d).getDay();
                     return (
                       <div key={ci} onClick={() => setSelectedDate(ds)} style={{ textAlign: "center", padding: "4px 2px", cursor: "pointer", borderRadius: 10, background: isSel ? "#007aff" : "transparent" }}>
@@ -1141,11 +867,8 @@ export default function App() {
           </div>
           {projects.length === 0 && <div style={{ textAlign: "center", color: "#aaa", marginTop: 60, fontSize: 17 }}>尚無專案</div>}
           {projects.map(p => {
-            const totals = projTotals(p.id);
-            const twdTotal = projectTwdTotal(p);
-            const cnt = projExpenses(p.id).length;
-            const mainTotal = totals[p.currency || "TWD"] || 0;
-            const pct = p.budget ? Math.min(100, Math.round(mainTotal / p.budget * 100)) : null;
+            const totals = projTotals(p.id); const twdTotal = projectTwdTotal(p); const cnt = projExpenses(p.id).length;
+            const mainTotal = totals[p.currency || "TWD"] || 0; const pct = p.budget ? Math.min(100, Math.round(mainTotal / p.budget * 100)) : null;
             return (
               <div key={p.id} onClick={() => { setActiveProject(p); setModal("project_detail"); }} style={{ background: "#fff", borderRadius: 14, padding: "16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,.06)", cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -1159,49 +882,28 @@ export default function App() {
         </div>}
 
         {tab === "stats" && <StatsView
-          activeFilterCount={activeFilterCount}
-          categories={categories}
-          catIcons={catIcons}
-          payments={payments}
-          projects={projects}
-          setQuickRange={setQuickRange}
-          showStatsFilter={showStatsFilter}
-          statsByCategory={statsByCategory}
-          statsByPayment={statsByPayment}
-          statsCategory={statsCategory}
-          statsFiltered={statsFiltered}
-          statsFrom={statsFrom}
-          statsPayment={statsPayment}
-          statsProject={statsProject}
-          statsSubcategory={statsSubcategory}
-          statsSubpayment={statsSubpayment}
-          statsTo={statsTo}
-          statsTotals={statsTotals}
-          currencyOptions={currencyOptions}
-          setShowStatsFilter={setShowStatsFilter}
-          setStatsCategory={setStatsCategory}
-          setStatsFrom={setStatsFrom}
-          setStatsPayment={setStatsPayment}
-          setStatsProject={setStatsProject}
-          setStatsSubcategory={setStatsSubcategory}
-          setStatsSubpayment={setStatsSubpayment}
-          setStatsTo={setStatsTo}
-          getExpDateStr={getExpDateStr}
-          onEditExpense={openExpenseEditor}
-          onExportStats={exportStatsReport}
-          onImportStats={importStatsReport}
-          importingExcel={importingExcel}
+          activeFilterCount={activeFilterCount} categories={categories} catIcons={catIcons} payments={payments}
+          projects={projects} setQuickRange={setQuickRange} showStatsFilter={showStatsFilter}
+          statsByCategory={statsByCategory} statsByPayment={statsByPayment} statsCategory={statsCategory}
+          statsFiltered={statsFiltered} statsFrom={statsFrom} statsPayment={statsPayment} statsProject={statsProject}
+          statsSubcategory={statsSubcategory} statsSubpayment={statsSubpayment} statsTo={statsTo}
+          statsTotals={statsTotals} currencyOptions={currencyOptions} setShowStatsFilter={setShowStatsFilter}
+          setStatsCategory={setStatsCategory} setStatsFrom={setStatsFrom} setStatsPayment={setStatsPayment}
+          setStatsProject={setStatsProject} setStatsSubcategory={setStatsSubcategory} setStatsSubpayment={setStatsSubpayment}
+          setStatsTo={setStatsTo} getExpDateStr={getExpDateStr} onEditExpense={openExpenseEditor}
+          onExportStats={exportStatsReport} onImportStats={importStatsReport} importingExcel={importingExcel}
           getExpenseTwdLabel={expenseTwdLabel}
         />}
 
         {tab === "settings" && <div style={{ padding: "14px 12px 0" }}>
           <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>項目設定</div>
+          {/* ── 修改：加入「📈 匯率」tab ── */}
           <div style={{ display: "flex", background: "#e5e5ea", borderRadius: 10, padding: 3, marginBottom: 18 }}>
-            {[["category", "🍜 消費類別"], ["payment", "💳 付款方式"], ["currency", "💱 幣別"]].map(([k, l]) => (
-              <button key={k} onClick={() => { setSettingsType(k); setExpandedParent(null); setNewParentIcon("📌"); }} style={{ flex: 1, padding: "8px 0", border: "none", borderRadius: 8, fontSize: 15, fontWeight: 600, background: settingsType === k ? "#fff" : "transparent", color: settingsType === k ? "#1c1c1e" : "#8e8e93", cursor: "pointer", boxShadow: settingsType === k ? "0 1px 4px rgba(0,0,0,.1)" : "none" }}>{l}</button>
+            {[["category", "🍜 類別"], ["payment", "💳 付款"], ["currency", "💱 幣別"], ["rates", "📈 匯率"]].map(([k, l]) => (
+              <button key={k} onClick={() => { setSettingsType(k); setExpandedParent(null); setNewParentIcon("📌"); }} style={{ flex: 1, padding: "8px 0", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, background: settingsType === k ? "#fff" : "transparent", color: settingsType === k ? "#1c1c1e" : "#8e8e93", cursor: "pointer", boxShadow: settingsType === k ? "0 1px 4px rgba(0,0,0,.1)" : "none" }}>{l}</button>
             ))}
           </div>
-          {settingsType !== "currency" && <><div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {settingsType !== "currency" && settingsType !== "rates" && <><div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             {settingsType === "category" && <IconSelect value={newParentIcon} onChange={setNewParentIcon} />}
             <input value={newParent} onChange={e => setNewParent(e.target.value)} placeholder={settingsType === "category" ? "新增類別（如：健身）" : "新增付款方式（如：數位帳戶）"} style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 16, outline: "none" }} onKeyDown={e => e.key === "Enter" && addParent()} />
             <button onClick={addParent} style={{ padding: "10px 14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 10, fontSize: 22, cursor: "pointer" }}>＋</button>
@@ -1247,6 +949,8 @@ export default function App() {
               </div>;
             })}
           </>}
+          {/* ── 新增：匯率面板 ── */}
+          {settingsType === "rates" && <RatesPanel botRates={botRates} onLoad={async rates => { await saveBotRates(rates); showToast(`✅ 已載入 ${Object.keys(rates).filter(k => k !== "__updatedAt__").length} 種幣別匯率`); }} />}
         </div>}
       </div>
 
@@ -1330,32 +1034,97 @@ export default function App() {
 
 const selStyle = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 16, background: "#fff", boxSizing: "border-box", outline: "none" };
 
-function StatsView(props) {
-  const {
-    activeFilterCount, categories, catIcons, currencyOptions, payments, projects, setQuickRange, showStatsFilter,
-    statsByCategory, statsByPayment, statsCategory, statsFiltered, statsFrom,
-    statsPayment, statsProject, statsSubcategory, statsSubpayment, statsTo,
-    statsTotals, setShowStatsFilter, setStatsCategory, setStatsFrom, setStatsPayment,
-    setStatsProject, setStatsSubcategory, setStatsSubpayment, setStatsTo, getExpDateStr,
-    onEditExpense, onExportStats, onImportStats, importingExcel, getExpenseTwdLabel
-  } = props;
-  const now = new Date();
+// ── 新增元件：RatesPanel ──────────────────────────────────────────
+function RatesPanel({ botRates, onLoad }) {
+  const [parsing, setParsing] = useState(false);
+  const [error, setError] = useState("");
+  const updatedAt = botRates.__updatedAt__;
+  const rateEntries = Object.entries(botRates).filter(([k]) => k !== "__updatedAt__");
 
+  const parseBoTCSV = text => {
+    const rates = {};
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    for (const line of lines) {
+      const cells = line.split(",").map(c => c.replace(/^"|"$/g, "").trim());
+      const code = cells[0];
+      if (!/^[A-Z]{3}$/.test(code)) continue;
+      // 台銀 flcsv：cells[12] = 現金賣出
+      const cashSell = Number(cells[12]);
+      if (Number.isFinite(cashSell) && cashSell > 0) rates[code] = cashSell;
+    }
+    return rates;
+  };
+
+  const handleFile = async file => {
+    if (!file) return;
+    setParsing(true); setError("");
+    try {
+      const text = await file.text();
+      const rates = parseBoTCSV(text);
+      if (!Object.keys(rates).length) { setError("找不到有效匯率，請確認是台銀 CSV 格式（flcsv）"); return; }
+      await onLoad({ ...rates, __updatedAt__: new Date().toISOString() });
+    } catch (e) { setError("讀取失敗：" + e.message); }
+    finally { setParsing(false); }
+  };
+
+  return (
+    <div>
+      <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>如何取得台銀匯率？</div>
+        <div style={{ fontSize: 13, color: "#555", lineHeight: 1.8 }}>
+          1. 點下方按鈕前往台銀網頁，下載當日匯率 CSV<br />
+          2. 回到此頁，點「上傳 CSV」選取剛下載的檔案<br />
+          3. 載入成功後，新增／編輯專案時點「抓臺銀」即可自動帶入匯率
+        </div>
+        <a href="https://rate.bot.com.tw/xrt/flcsv/0/day" target="_blank" rel="noreferrer"
+          style={{ display: "block", marginTop: 12, padding: "10px 0", textAlign: "center", background: "#f5f5f7", borderRadius: 10, fontSize: 15, fontWeight: 600, color: "#007aff", textDecoration: "none" }}>
+          🌐 前往台灣銀行下載匯率 CSV
+        </a>
+      </div>
+
+      <label style={{ display: "block", background: parsing ? "#c7c7cc" : "#007aff", color: "#fff", borderRadius: 14, padding: 14, textAlign: "center", fontSize: 16, fontWeight: 600, cursor: parsing ? "default" : "pointer", marginBottom: 16 }}>
+        {parsing ? "解析中…" : "⬆ 上傳台銀 CSV 檔案"}
+        <input type="file" accept=".csv,text/csv,text/plain" disabled={parsing}
+          onChange={e => { handleFile(e.target.files?.[0]); e.target.value = ""; }}
+          style={{ display: "none" }} />
+      </label>
+
+      {error && <div style={{ color: "#ff3b30", fontSize: 13, marginBottom: 12, padding: "8px 12px", background: "#fff2f2", borderRadius: 10 }}>{error}</div>}
+
+      {rateEntries.length > 0 && <>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>目前載入的匯率</div>
+          {updatedAt && <div style={{ fontSize: 12, color: "#8e8e93" }}>更新：{new Date(updatedAt).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>}
+        </div>
+        <div style={{ background: "#fff", borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
+          {rateEntries.map(([code, rate], idx) => (
+            <div key={code} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 16px", borderBottom: idx < rateEntries.length - 1 ? "1px solid #f5f5f7" : "none" }}>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>{code}</div>
+              <div style={{ fontSize: 14, color: "#555" }}>1 {code} = <span style={{ fontWeight: 700, color: "#1c1c1e" }}>{rate}</span> TWD <span style={{ fontSize: 12, color: "#8e8e93" }}>（現金賣出）</span></div>
+            </div>
+          ))}
+        </div>
+      </>}
+
+      {rateEntries.length === 0 && <div style={{ textAlign: "center", color: "#aaa", padding: "30px 0", fontSize: 15 }}>尚未載入匯率<br /><span style={{ fontSize: 13 }}>請依上方步驟下載並上傳台銀 CSV</span></div>}
+    </div>
+  );
+}
+
+function StatsView(props) {
+  const { activeFilterCount, categories, catIcons, currencyOptions, payments, projects, setQuickRange, showStatsFilter, statsByCategory, statsByPayment, statsCategory, statsFiltered, statsFrom, statsPayment, statsProject, statsSubcategory, statsSubpayment, statsTo, statsTotals, setShowStatsFilter, setStatsCategory, setStatsFrom, setStatsPayment, setStatsProject, setStatsSubcategory, setStatsSubpayment, setStatsTo, getExpDateStr, onEditExpense, onExportStats, onImportStats, importingExcel, getExpenseTwdLabel } = props;
+  const now = new Date();
   return <div style={{ padding: "14px 12px 0" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
       <div style={{ fontSize: 18, fontWeight: 600 }}>統計分析</div>
       <div style={{ display: "flex", gap: 6 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 5, background: importingExcel ? "#c7c7cc" : "#ff9500", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: importingExcel ? "default" : "pointer", fontWeight: 600 }}>
-          ⬆ 匯入
-          <input type="file" accept=".xlsx,.xls,.html,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/html,application/vnd.ms-excel" disabled={importingExcel} onChange={e => { onImportStats(e.target.files?.[0]); e.target.value = ""; }} style={{ display: "none" }} />
+          ⬆ 匯入<input type="file" accept=".xlsx,.xls,.html,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/html,application/vnd.ms-excel" disabled={importingExcel} onChange={e => { onImportStats(e.target.files?.[0]); e.target.value = ""; }} style={{ display: "none" }} />
         </label>
         <button onClick={onExportStats} style={{ display: "flex", alignItems: "center", gap: 5, background: "#34c759", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>⬇ 匯出</button>
-        <button onClick={() => setShowStatsFilter(!showStatsFilter)} style={{ display: "flex", alignItems: "center", gap: 5, background: activeFilterCount > 0 ? "#007aff" : "#e5e5ea", color: activeFilterCount > 0 ? "#fff" : "#555", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>
-          ⚙ 篩選{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-        </button>
+        <button onClick={() => setShowStatsFilter(!showStatsFilter)} style={{ display: "flex", alignItems: "center", gap: 5, background: activeFilterCount > 0 ? "#007aff" : "#e5e5ea", color: activeFilterCount > 0 ? "#fff" : "#555", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 15, cursor: "pointer", fontWeight: 600 }}>⚙ 篩選{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}</button>
       </div>
     </div>
-
     {showStatsFilter && <div style={{ background: "#fff", borderRadius: 14, padding: "16px", marginBottom: 14, boxShadow: "0 1px 6px rgba(0,0,0,.07)" }}>
       <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 8 }}>快速區間</div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
@@ -1372,38 +1141,20 @@ function StatsView(props) {
       <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>消費類別</div>
       <div style={{ display: "flex", gap: 8, marginBottom: statsCategory ? 8 : 14 }}>
         <select value={statsCategory} onChange={e => { setStatsCategory(e.target.value); setStatsSubcategory(""); }} style={selStyle}>
-          <option value="">全部類別</option>
-          {Object.keys(categories).map(k => <option key={k} value={k}>{k}</option>)}
+          <option value="">全部類別</option>{Object.keys(categories).map(k => <option key={k} value={k}>{k}</option>)}
         </select>
       </div>
-      {statsCategory && categories[statsCategory]?.length > 0 && <div style={{ marginBottom: 14 }}>
-        <select value={statsSubcategory} onChange={e => setStatsSubcategory(e.target.value)} style={selStyle}>
-          <option value="">全部子類別</option>
-          {categories[statsCategory].map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-      </div>}
+      {statsCategory && categories[statsCategory]?.length > 0 && <div style={{ marginBottom: 14 }}><select value={statsSubcategory} onChange={e => setStatsSubcategory(e.target.value)} style={selStyle}><option value="">全部子類別</option>{categories[statsCategory].map(c => <option key={c} value={c}>{c}</option>)}</select></div>}
       <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>付款方式</div>
       <div style={{ display: "flex", gap: 8, marginBottom: statsPayment ? 8 : 14 }}>
         <select value={statsPayment} onChange={e => { setStatsPayment(e.target.value); setStatsSubpayment(""); }} style={selStyle}>
-          <option value="">全部付款方式</option>
-          {Object.keys(payments).map(k => <option key={k} value={k}>{k}</option>)}
+          <option value="">全部付款方式</option>{Object.keys(payments).map(k => <option key={k} value={k}>{k}</option>)}
         </select>
       </div>
-      {statsPayment && payments[statsPayment]?.length > 0 && <div style={{ marginBottom: 14 }}>
-        <select value={statsSubpayment} onChange={e => setStatsSubpayment(e.target.value)} style={selStyle}>
-          <option value="">全部子項目</option>
-          {payments[statsPayment].map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-      </div>}
-      {projects.length > 0 && <><div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>專案</div>
-        <select value={statsProject} onChange={e => setStatsProject(e.target.value)} style={{ ...selStyle, marginBottom: 14 }}>
-          <option value="">全部專案</option>
-          <option value="__none__">未指定專案</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select></>}
+      {statsPayment && payments[statsPayment]?.length > 0 && <div style={{ marginBottom: 14 }}><select value={statsSubpayment} onChange={e => setStatsSubpayment(e.target.value)} style={selStyle}><option value="">全部子項目</option>{payments[statsPayment].map(c => <option key={c} value={c}>{c}</option>)}</select></div>}
+      {projects.length > 0 && <><div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 6 }}>專案</div><select value={statsProject} onChange={e => setStatsProject(e.target.value)} style={{ ...selStyle, marginBottom: 14 }}><option value="">全部專案</option><option value="__none__">未指定專案</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></>}
       <button onClick={() => { setStatsFrom(monthStart(now.getFullYear(), now.getMonth())); setStatsTo(todayStr()); setStatsCategory(""); setStatsSubcategory(""); setStatsPayment(""); setStatsSubpayment(""); setStatsProject(""); }} style={{ width: "100%", padding: "9px", background: "none", border: "1px solid #e5e5ea", borderRadius: 10, fontSize: 15, cursor: "pointer", color: "#8e8e93" }}>重置篩選</button>
     </div>}
-
     <div style={{ background: "linear-gradient(135deg,#1c1c1e,#2c2c2e)", color: "#fff", borderRadius: 14, padding: "16px", marginBottom: 14 }}>
       <div style={{ fontSize: 14, opacity: 0.55, marginBottom: 4 }}>
         {statsFrom || "最早"} ～ {statsTo || "今天"}
@@ -1415,10 +1166,8 @@ function StatsView(props) {
       <CurrencyTotals options={currencyOptions} totals={statsTotals} size={28} />
       <div style={{ fontSize: 15, opacity: 0.6, marginTop: 4 }}>{statsFiltered.length} 筆消費</div>
     </div>
-
-    <Chart title="依類別" data={statsByCategory} totals={statsTotals} accent="#007aff" getLabelIcon={label => catIcons[label.split(" · ")[0].includes(" › ") ? label.split(" · ")[0].split(" › ")[0] : label.split(" · ")[0]] || "📌"} />
+    <Chart title="依類別" data={statsByCategory} totals={statsTotals} accent="#007aff" getLabelIcon={label => { const catIcons2 = catIcons; return catIcons2[label.split(" · ")[0].includes(" › ") ? label.split(" · ")[0].split(" › ")[0] : label.split(" · ")[0]] || "📌"; }} />
     <Chart title="依付款方式" data={statsByPayment} totals={statsTotals} accent="#5856d6" getLabelIcon={() => "💳"} />
-
     {statsFiltered.length > 0 && <div style={{ background: "#fff", borderRadius: 14, padding: "16px", boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
       <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>消費明細（{statsFiltered.length} 筆）</div>
       {[...statsFiltered].sort((a, b) => a.datetime > b.datetime ? -1 : 1).map(e => (
@@ -1445,17 +1194,14 @@ function Chart({ title, data, totals, accent, getLabelIcon }) {
   return <div style={{ background: "#fff", borderRadius: 14, padding: "16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
     <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>{title}</div>
     {Object.entries(data).sort((a, b) => b[1] - a[1]).map(([label, amt]) => {
-      const code = label.match(/[A-Z]{3}$/)?.[0] || "TWD";
-      const pct = totals[code] ? Math.round(amt / totals[code] * 100) : 0;
-      return (
-        <div key={label} style={{ marginBottom: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, marginBottom: 4 }}>
-            <span>{getLabelIcon(label)} {label}</span>
-            <span style={{ fontWeight: 600 }}>{code} {fmt(amt)} <span style={{ color: "#8e8e93", fontWeight: 400 }}>({pct}%)</span></span>
-          </div>
-          <div style={{ background: "#f0f0f5", borderRadius: 6, height: 8 }}><div style={{ height: "100%", width: `${pct}%`, background: accent, borderRadius: 6 }} /></div>
+      const code = label.match(/[A-Z]{3}$/)?.[0] || "TWD"; const pct = totals[code] ? Math.round(amt / totals[code] * 100) : 0;
+      return <div key={label} style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, marginBottom: 4 }}>
+          <span>{getLabelIcon(label)} {label}</span>
+          <span style={{ fontWeight: 600 }}>{code} {fmt(amt)} <span style={{ color: "#8e8e93", fontWeight: 400 }}>({pct}%)</span></span>
         </div>
-      );
+        <div style={{ background: "#f0f0f5", borderRadius: 6, height: 8 }}><div style={{ height: "100%", width: `${pct}%`, background: accent, borderRadius: 6 }} /></div>
+      </div>;
     })}
   </div>;
 }
@@ -1464,38 +1210,24 @@ function TwoLevelSelect({ map, parentValue, childValue, onParentChange, onChildC
   const children = parentValue ? (map[parentValue] || []) : [];
   return <>
     <select value={parentValue} onChange={e => onParentChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box", marginBottom: 8 }}>
-      <option value="">{parentPlaceholder}</option>
-      {Object.keys(map).map(k => <option key={k} value={k}>{k}</option>)}
+      <option value="">{parentPlaceholder}</option>{Object.keys(map).map(k => <option key={k} value={k}>{k}</option>)}
     </select>
     {parentValue && children.length > 0 && <select value={childValue} onChange={e => onChildChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
-      <option value="">{childPlaceholder}</option>
-      {children.map(c => <option key={c} value={c}>{c}</option>)}
+      <option value="">{childPlaceholder}</option>{children.map(c => <option key={c} value={c}>{c}</option>)}
     </select>}
   </>;
 }
-
 function Modal({ title, onClose, children }) {
   return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 100, display: "flex", alignItems: "flex-end" }}><div style={{ background: "#f5f5f7", borderRadius: "20px 20px 0 0", width: "100%", maxHeight: "90vh", overflowY: "auto", padding: "20px 20px 40px" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 20, fontWeight: 700, color: "#1c1c1e" }}>{title}</div><button onClick={onClose} style={{ background: "#e5e5ea", border: "none", borderRadius: 20, width: 30, height: 30, fontSize: 18, cursor: "pointer", color: "#555" }}>✕</button></div>{children}</div></div>;
 }
-
-function Label({ children }) {
-  return <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 4, marginTop: 14 }}>{children}</div>;
-}
-
-function Input({ onChange, ...props }) {
-  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box", outline: "none" }} />;
-}
-
-function Btn({ onClick, children }) {
-  return <button onClick={onClick} style={{ marginTop: 20, width: "100%", padding: "14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 12, fontSize: 18, fontWeight: 600, cursor: "pointer" }}>{children}</button>;
-}
-
+function Label({ children }) { return <div style={{ fontSize: 15, fontWeight: 600, color: "#8e8e93", marginBottom: 4, marginTop: 14 }}>{children}</div>; }
+function Input({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box", outline: "none" }} />; }
+function Btn({ onClick, children }) { return <button onClick={onClick} style={{ marginTop: 20, width: "100%", padding: "14px", background: "#007aff", color: "#fff", border: "none", borderRadius: 12, fontSize: 18, fontWeight: 600, cursor: "pointer" }}>{children}</button>; }
 function CurrencySelect({ options, value, onChange }) {
   return <select value={value} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 17, background: "#fff", boxSizing: "border-box" }}>
     {options.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
   </select>;
 }
-
 function ProjectForm({ currencyOptions, project, setProject, onFetchRate, rateLoading }) {
   return <>
     <Label>專案名稱</Label><Input placeholder="2026 東京旅遊" value={project.name} onChange={v => setProject({ ...project, name: v })} />
@@ -1512,21 +1244,18 @@ function ProjectForm({ currencyOptions, project, setProject, onFetchRate, rateLo
     <Label>預算（{project.currency}，選填）</Label><Input type="number" placeholder="50000" value={project.budget} onChange={v => setProject({ ...project, budget: v })} />
   </>;
 }
-
 function IconSelect({ value, onChange }) {
   return <select value={value} onChange={e => onChange(e.target.value)} aria-label="類別圖示" style={{ width: 54, flex: "0 0 54px", padding: "10px 6px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 22, background: "#fff", outline: "none", textAlign: "center" }}>
     {CATEGORY_ICON_OPTIONS.map(icon => <option key={icon} value={icon}>{icon}</option>)}
   </select>;
 }
-
 function MoveButtons({ onUp, onDown, disableUp, disableDown, compact = false }) {
-  const style = { background: "none", border: "none", color: "#007aff", fontSize: compact ? 16 : 18, cursor: "pointer", padding: compact ? "0 3px" : "0 4px", opacity: 1 };
+  const style = { background: "none", border: "none", color: "#007aff", fontSize: compact ? 16 : 18, cursor: "pointer", padding: compact ? "0 3px" : "0 4px" };
   return <div style={{ display: "flex", marginRight: compact ? 2 : 4 }}>
     <button aria-label="上移" title="上移" onClick={onUp} disabled={disableUp} style={{ ...style, opacity: disableUp ? 0.25 : 1 }}>↑</button>
     <button aria-label="下移" title="下移" onClick={onDown} disabled={disableDown} style={{ ...style, opacity: disableDown ? 0.25 : 1 }}>↓</button>
   </div>;
 }
-
 function CurrencyTotals({ options = CURRENCY_OPTIONS, totals, size = 18, color = "inherit", align = "left" }) {
   const entries = orderedCurrencyEntries(totals, options);
   if (entries.length === 0) entries.push(["TWD", 0]);
@@ -1534,7 +1263,6 @@ function CurrencyTotals({ options = CURRENCY_OPTIONS, totals, size = 18, color =
     {entries.map(([code, amt]) => <div key={code} style={{ fontSize: size, fontWeight: 700, color, lineHeight: 1.15 }}>{code} {fmt(amt)}</div>)}
   </div>;
 }
-
 function StatBox({ label, value }) {
   return <div style={{ flex: 1, background: "#f5f5f7", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}><div style={{ fontSize: 13, color: "#8e8e93" }}>{label}</div><div style={{ fontSize: 17, fontWeight: 700, marginTop: 4 }}>{value}</div></div>;
 }
